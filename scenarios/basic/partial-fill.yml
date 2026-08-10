@@ -1,0 +1,11 @@
+scenario: partial_fill
+
+account:
+  cash: 10000000
+
+execution:
+  fills:
+    - after: 1s
+      ratio: 0.3
+
+seed: 42

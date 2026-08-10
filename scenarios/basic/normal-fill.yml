@@ -1,0 +1,11 @@
+scenario: normal_fill
+
+account:
+  cash: 10000000
+
+execution:
+  fills:
+    - after: 1s
+      ratio: 1.0
+
+seed: 42

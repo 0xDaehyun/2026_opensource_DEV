@@ -1,0 +1,17 @@
+scenario: response_delay_after_commit
+
+account:
+  cash: 10000000
+
+execution:
+  fills:
+    - after: 1s
+      ratio: 0.3
+
+faults:
+  response:
+    on: PLACE_ORDER
+    timing: AFTER_COMMIT
+    delay: 3s
+
+seed: 42

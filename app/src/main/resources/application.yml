@@ -1,0 +1,13 @@
+spring:
+  application:
+    name: stock-mock-server
+
+server:
+  port: 8080
+
+mock:
+  account:
+    initial-cash: 10000000
+  fill:
+    ratio: 0.3
+    delay: 5s

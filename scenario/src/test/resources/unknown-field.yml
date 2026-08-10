@@ -1,0 +1,5 @@
+scenario: invalid
+account:
+  cash: 10000000
+unexpected_field: true
+seed: 42
