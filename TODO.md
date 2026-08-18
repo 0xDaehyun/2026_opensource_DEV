@@ -43,11 +43,11 @@ ADAPTER-03, ADAPTER-04는 독립적으로 진행 가능
 
 ### CORE-02 FillPlanProvider 계약
 
-- [ ] `FillPlanProvider` 인터페이스를 core에 추가한다.
-- [ ] `SimulationEngine` 생성자로 주입한다.
-- [ ] 기존 하드코딩된 `fillRatio`, `fillDelay`를 제거한다.
-- [ ] 주문 접수 시 `FillPlan`을 한 번만 생성한다.
-- [ ] 고정 Provider를 사용한 엔진 테스트를 작성한다.
+- [x] `FillPlanProvider` 인터페이스를 core에 추가한다.
+- [x] `SimulationEngine` 생성자로 주입한다.
+- [x] 기존 하드코딩된 `fillRatio`, `fillDelay`를 제거한다.
+- [x] 주문 접수 시 `FillPlan`을 한 번만 생성한다.
+- [x] 고정 Provider를 사용한 엔진 테스트를 작성한다.
 
 ### CORE-03 취소와 계좌 불변식 보강
 

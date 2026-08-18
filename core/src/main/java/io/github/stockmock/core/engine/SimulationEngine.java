@@ -7,11 +7,11 @@ import io.github.stockmock.core.event.EventLog;
 import io.github.stockmock.core.event.EventRecord;
 import io.github.stockmock.core.event.SimEvent;
 import io.github.stockmock.core.fill.FillPlan;
+import io.github.stockmock.core.fill.FillPlanProvider;
 import io.github.stockmock.core.fill.FillStep;
 import io.github.stockmock.core.order.Order;
 import io.github.stockmock.core.order.OrderState;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -31,21 +31,16 @@ public final class SimulationEngine implements EnginePort, AutoCloseable {
     private final Object queueMonitor = new Object();
     private final Thread engineThread;
     private final AtomicBoolean running = new AtomicBoolean(true);
-    private final double fillRatio;
-    private final Duration fillDelay;
+    private final FillPlanProvider fillPlanProvider;
     private long scheduleSequence;
     private long eventSequence;
     private long orderSequence;
     private Instant activeEventTime;
 
-    public SimulationEngine(VirtualClock clock, long initialCash, double fillRatio, Duration fillDelay) {
+    public SimulationEngine(VirtualClock clock, long initialCash, FillPlanProvider fillPlanProvider) {
         this.clock = Objects.requireNonNull(clock, "clock");
         this.account = new Account(initialCash);
-        if (fillRatio <= 0 || fillRatio > 1 || fillDelay == null || fillDelay.isNegative()) {
-            throw new IllegalArgumentException("체결 비율과 지연 설정이 올바르지 않습니다");
-        }
-        this.fillRatio = fillRatio;
-        this.fillDelay = fillDelay;
+        this.fillPlanProvider = Objects.requireNonNull(fillPlanProvider, "fillPlanProvider");
         this.engineThread = Thread.ofPlatform().name("stock-mock-des").daemon(true).start(this::loop);
     }
 
@@ -138,11 +133,24 @@ public final class SimulationEngine implements EnginePort, AutoCloseable {
             return;
         }
 
+        FillPlan fillPlan;
+        try {
+            fillPlan = Objects.requireNonNull(fillPlanProvider.create(order.quantity()),
+                    "FillPlanProvider는 null을 반환할 수 없습니다");
+            validateFillPlan(order.quantity(), fillPlan);
+        } catch (RuntimeException exception) {
+            account.cancel(order);
+            account.assertConsistent();
+            append("ORDER_REJECTED", orderId, Map.of("reason", exception.getMessage()));
+            future.complete(new OrderResult(orderId, command.clientOrderId(), OrderState.REJECTED,
+                    command.qty(), 0, exception.getMessage()));
+            return;
+        }
+
         orders.put(orderId, order);
         orderIdsByClientId.put(command.clientOrderId(), orderId);
         append("ORDER_ACCEPTED", orderId, orderPayload(order));
 
-        FillPlan fillPlan = FillPlan.partial(order.quantity(), fillRatio, fillDelay);
         Instant acceptedAt = clock.now();
         for (FillStep step : fillPlan.steps()) {
             schedule(acceptedAt.plus(step.delay()), () -> fill(orderId, step.quantity()));
@@ -192,6 +200,20 @@ public final class SimulationEngine implements EnginePort, AutoCloseable {
     private OrderView viewOf(Order order) {
         return new OrderView(order.id(), order.clientOrderId(), order.symbol(), order.side(), order.state(),
                 order.quantity(), order.filledQuantity(), order.remainingQuantity(), order.price());
+    }
+
+    private void validateFillPlan(long orderQuantity, FillPlan fillPlan) {
+        long plannedQuantity = 0;
+        for (FillStep step : fillPlan.steps()) {
+            try {
+                plannedQuantity = Math.addExact(plannedQuantity, step.quantity());
+            } catch (ArithmeticException overflow) {
+                throw new IllegalArgumentException("체결 계획 수량 합계가 너무 큽니다", overflow);
+            }
+            if (plannedQuantity > orderQuantity) {
+                throw new IllegalArgumentException("체결 계획 수량은 주문 수량을 넘을 수 없습니다");
+            }
+        }
     }
 
     private Map<String, Object> orderPayload(Order order) {
