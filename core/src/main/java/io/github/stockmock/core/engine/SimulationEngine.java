@@ -73,6 +73,21 @@ public final class SimulationEngine implements EnginePort, AutoCloseable {
         return result;
     }
 
+    @Override
+    public CompletableFuture<OrderView> query(OrderQuery query) {
+        Objects.requireNonNull(query, "query");
+        CompletableFuture<OrderView> result = new CompletableFuture<>();
+        schedule(clock.now(), () -> {
+            Order order = orders.get(query.orderId());
+            if (order == null) {
+                result.completeExceptionally(new IllegalArgumentException("주문을 찾을 수 없습니다"));
+                return;
+            }
+            result.complete(viewOf(order));
+        });
+        return result;
+    }
+
     public CompletableFuture<java.util.List<EventRecord>> events() {
         CompletableFuture<java.util.List<EventRecord>> result = new CompletableFuture<>();
         schedule(clock.now(), () -> result.complete(eventLog.snapshot()));
@@ -172,6 +187,11 @@ public final class SimulationEngine implements EnginePort, AutoCloseable {
     private OrderResult resultOf(Order order, String reason) {
         return new OrderResult(order.id(), order.clientOrderId(), order.state(), order.quantity(),
                 order.filledQuantity(), reason);
+    }
+
+    private OrderView viewOf(Order order) {
+        return new OrderView(order.id(), order.clientOrderId(), order.symbol(), order.side(), order.state(),
+                order.quantity(), order.filledQuantity(), order.remainingQuantity(), order.price());
     }
 
     private Map<String, Object> orderPayload(Order order) {

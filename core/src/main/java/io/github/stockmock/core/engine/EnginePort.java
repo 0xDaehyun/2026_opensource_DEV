@@ -10,4 +10,6 @@ public interface EnginePort {
     CompletableFuture<OrderResult> cancel(CancelOrder command);
 
     CompletableFuture<AccountView> query(AccountQuery query);
+
+    CompletableFuture<OrderView> query(OrderQuery query);
 }
