@@ -3,6 +3,8 @@ package io.github.stockmock.core.engine;
 import io.github.stockmock.core.account.Account;
 import io.github.stockmock.core.account.AccountView;
 import io.github.stockmock.core.clock.VirtualClock;
+import io.github.stockmock.core.error.CoreErrorCode;
+import io.github.stockmock.core.error.CoreException;
 import io.github.stockmock.core.event.EventLog;
 import io.github.stockmock.core.event.EventRecord;
 import io.github.stockmock.core.event.SimEvent;
@@ -80,7 +82,8 @@ public final class SimulationEngine implements EnginePort, AutoCloseable {
         schedule(clock.now(), () -> {
             Order order = orders.get(query.orderId());
             if (order == null) {
-                result.completeExceptionally(new IllegalArgumentException("주문을 찾을 수 없습니다"));
+                result.completeExceptionally(
+                        new CoreException(CoreErrorCode.ORDER_NOT_FOUND, "주문을 찾을 수 없습니다"));
                 return;
             }
             result.complete(viewOf(order));

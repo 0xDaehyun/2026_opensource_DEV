@@ -2,6 +2,8 @@ package io.github.stockmock.core.engine;
 
 import io.github.stockmock.core.account.AccountView;
 import io.github.stockmock.core.clock.VirtualClock;
+import io.github.stockmock.core.error.CoreErrorCode;
+import io.github.stockmock.core.error.CoreException;
 import io.github.stockmock.core.event.EventRecord;
 import io.github.stockmock.core.order.OrderState;
 import io.github.stockmock.core.order.Side;
@@ -11,9 +13,11 @@ import org.junit.jupiter.api.Test;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.CompletionException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
 class SimulationEngineTest {
     private static final Instant START = Instant.parse("2026-01-02T00:00:00Z");
@@ -111,9 +115,14 @@ class SimulationEngineTest {
     @Test
     void failsAnUnknownOrderQueryWithoutStoppingTheEngine() {
         try (SimulationEngine engine = engine()) {
-            assertThatThrownBy(() -> engine.query(new OrderQuery("ORD-999999")).join())
-                    .hasRootCauseInstanceOf(IllegalArgumentException.class)
-                    .hasRootCauseMessage("주문을 찾을 수 없습니다");
+            Throwable failure = catchThrowable(
+                    () -> engine.query(new OrderQuery("ORD-999999")).join());
+
+            assertThat(failure).isInstanceOf(CompletionException.class);
+            assertThat(failure.getCause()).isInstanceOfSatisfying(CoreException.class, coreFailure -> {
+                assertThat(coreFailure.code()).isEqualTo(CoreErrorCode.ORDER_NOT_FOUND);
+                assertThat(coreFailure).hasMessage("주문을 찾을 수 없습니다");
+            });
 
             assertThat(engine.query(new AccountQuery()).join().cash()).isEqualTo(10_000_000);
         }
@@ -121,9 +130,12 @@ class SimulationEngineTest {
 
     @Test
     void rejectsABlankOrderId() {
-        assertThatThrownBy(() -> new OrderQuery(" "))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("orderId가 필요합니다");
+        Throwable failure = catchThrowable(() -> new OrderQuery(" "));
+
+        assertThat(failure).isInstanceOfSatisfying(CoreException.class, coreFailure -> {
+            assertThat(coreFailure.code()).isEqualTo(CoreErrorCode.INVALID_REQUEST);
+            assertThat(coreFailure).hasMessage("orderId가 필요합니다");
+        });
     }
 
     private List<EventRecord> runOnce() {

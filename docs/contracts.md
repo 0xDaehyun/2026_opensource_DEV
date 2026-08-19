@@ -103,3 +103,6 @@ scenario:   field path와 의미 검증 오류
 ```
 
 core에는 `rsp_cd`, TR, InBlock, OutBlock 문자열이 등장하면 안 된다.
+
+Adapter는 core 예외의 메시지 문자열을 비교하지 않고 `CoreException.code()`를 기준으로
+증권사 오류 봉투를 만든다. 예를 들어 `ORDER_NOT_FOUND`는 LS 주문 없음 오류로 변환한다.
