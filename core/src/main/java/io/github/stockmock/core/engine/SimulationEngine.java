@@ -125,11 +125,15 @@ public final class SimulationEngine implements EnginePort, AutoCloseable {
         try {
             order = new Order(orderId, command.clientOrderId(), command.symbol(), command.side(),
                     command.qty(), command.price());
+        } catch (RuntimeException exception) {
+            rejectOrder(null, orderId, command, exception, future);
+            return;
+        }
+
+        try {
             account.accept(order);
         } catch (RuntimeException exception) {
-            append("ORDER_REJECTED", orderId, Map.of("reason", exception.getMessage()));
-            future.complete(new OrderResult(orderId, command.clientOrderId(), OrderState.REJECTED,
-                    command.qty(), 0, exception.getMessage()));
+            rejectOrder(order, orderId, command, exception, future);
             return;
         }
 
@@ -141,9 +145,7 @@ public final class SimulationEngine implements EnginePort, AutoCloseable {
         } catch (RuntimeException exception) {
             account.cancel(order);
             account.assertConsistent();
-            append("ORDER_REJECTED", orderId, Map.of("reason", exception.getMessage()));
-            future.complete(new OrderResult(orderId, command.clientOrderId(), OrderState.REJECTED,
-                    command.qty(), 0, exception.getMessage()));
+            rejectOrder(order, orderId, command, exception, future);
             return;
         }
 
@@ -195,6 +197,18 @@ public final class SimulationEngine implements EnginePort, AutoCloseable {
     private OrderResult resultOf(Order order, String reason) {
         return new OrderResult(order.id(), order.clientOrderId(), order.state(), order.quantity(),
                 order.filledQuantity(), reason);
+    }
+
+    private void rejectOrder(Order order, String orderId, PlaceOrder command, RuntimeException failure,
+                             CompletableFuture<OrderResult> future) {
+        String reason = failure.getMessage() == null ? failure.getClass().getSimpleName() : failure.getMessage();
+        if (order != null) {
+            order.reject();
+            orders.put(orderId, order);
+        }
+        append("ORDER_REJECTED", orderId, Map.of("reason", reason));
+        future.complete(new OrderResult(orderId, command.clientOrderId(), OrderState.REJECTED,
+                command.qty(), 0, reason));
     }
 
     private OrderView viewOf(Order order) {

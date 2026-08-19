@@ -6,6 +6,7 @@ import io.github.stockmock.core.event.EventRecord;
 import io.github.stockmock.core.fill.FillPlan;
 import io.github.stockmock.core.fill.FillPlanProvider;
 import io.github.stockmock.core.fill.FillStep;
+import io.github.stockmock.core.order.IllegalOrderTransitionException;
 import io.github.stockmock.core.order.OrderState;
 import io.github.stockmock.core.order.Side;
 import io.github.stockmock.core.order.Symbol;
@@ -193,12 +194,103 @@ class SimulationEngineTest {
         }
     }
 
+    @Test
+    void cancelsOnlyTheRemainingQuantityAfterAPartialFill() {
+        try (SimulationEngine engine = headlessEngine(0.3)) {
+            OrderResult accepted = engine.submit(
+                    new PlaceOrder("CLIENT-1", new Symbol("005930"), Side.BUY, 100, 70_000)).join();
+            engine.awaitIdle().join();
+
+            OrderResult cancelled = engine.cancel(
+                    new CancelOrder("CANCEL-1", accepted.orderId(), 0)).join();
+            OrderView order = engine.query(new OrderQuery(accepted.orderId())).join();
+            AccountView account = engine.query(new AccountQuery()).join();
+
+            assertThat(cancelled.state()).isEqualTo(OrderState.CANCELLED);
+            assertThat(order.filledQuantity()).isEqualTo(30);
+            assertThat(order.remainingQuantity()).isEqualTo(70);
+            assertThat(account.cash()).isEqualTo(7_900_000);
+            assertThat(account.lockedCash()).isZero();
+            assertThat(account.positions().get("005930").quantity()).isEqualTo(30);
+            assertThat(engine.events().join()).extracting(EventRecord::type)
+                    .containsExactly("ORDER_ACCEPTED", "PARTIAL_FILL", "ORDER_CANCELLED");
+        }
+    }
+
+    @Test
+    void rejectsCancellationOfAFilledOrderAndKeepsTheEngineRunning() {
+        try (SimulationEngine engine = headlessEngine(1.0)) {
+            OrderResult accepted = engine.submit(
+                    new PlaceOrder("CLIENT-1", new Symbol("005930"), Side.BUY, 100, 70_000)).join();
+            engine.awaitIdle().join();
+
+            assertIllegalCancellation(engine, accepted.orderId(), "FILLED 상태에서는 취소할 수 없습니다");
+
+            assertThat(engine.query(new OrderQuery(accepted.orderId())).join().state())
+                    .isEqualTo(OrderState.FILLED);
+        }
+    }
+
+    @Test
+    void rejectsRepeatedCancellationAndKeepsTheEngineRunning() {
+        try (SimulationEngine engine = attachedEngine(0.3)) {
+            OrderResult accepted = engine.submit(
+                    new PlaceOrder("CLIENT-1", new Symbol("005930"), Side.BUY, 100, 70_000)).join();
+            engine.cancel(new CancelOrder("CANCEL-1", accepted.orderId(), 0)).join();
+
+            assertIllegalCancellation(engine, accepted.orderId(), "CANCELLED 상태에서는 취소할 수 없습니다");
+
+            assertThat(engine.query(new AccountQuery()).join().cash()).isEqualTo(10_000_000);
+            assertThat(engine.query(new AccountQuery()).join().lockedCash()).isZero();
+        }
+    }
+
+    @Test
+    void preservesARejectedOrderAndRejectsItsCancellation() {
+        try (SimulationEngine engine = new SimulationEngine(
+                VirtualClock.headless(START), 1_000, fixedPlan(0.3, Duration.ZERO))) {
+            OrderResult rejected = engine.submit(
+                    new PlaceOrder("CLIENT-1", new Symbol("005930"), Side.BUY, 100, 70_000)).join();
+
+            assertThat(engine.query(new OrderQuery(rejected.orderId())).join().state())
+                    .isEqualTo(OrderState.REJECTED);
+            assertIllegalCancellation(engine, rejected.orderId(), "REJECTED 상태에서는 취소할 수 없습니다");
+            assertThat(engine.query(new AccountQuery()).join().cash()).isEqualTo(1_000);
+        }
+    }
+
+    @Test
+    void partialFillAndCancellationProduceDeterministicEventLogs() {
+        List<EventRecord> first = runPartialFillAndCancellation();
+        List<EventRecord> second = runPartialFillAndCancellation();
+
+        assertThat(first).isEqualTo(second);
+        assertThat(first).extracting(EventRecord::type)
+                .containsExactly("ORDER_ACCEPTED", "PARTIAL_FILL", "ORDER_CANCELLED");
+    }
+
     private List<EventRecord> runOnce() {
         try (SimulationEngine engine = engine()) {
             engine.submit(new PlaceOrder("CLIENT-1", new Symbol("005930"), Side.BUY, 100, 70_000)).join();
             engine.awaitIdle().join();
             return engine.events().join();
         }
+    }
+
+    private List<EventRecord> runPartialFillAndCancellation() {
+        try (SimulationEngine engine = headlessEngine(0.3)) {
+            OrderResult accepted = engine.submit(
+                    new PlaceOrder("CLIENT-1", new Symbol("005930"), Side.BUY, 100, 70_000)).join();
+            engine.awaitIdle().join();
+            engine.cancel(new CancelOrder("CANCEL-1", accepted.orderId(), 0)).join();
+            return engine.events().join();
+        }
+    }
+
+    private void assertIllegalCancellation(SimulationEngine engine, String orderId, String message) {
+        assertThatThrownBy(() -> engine.cancel(new CancelOrder("CANCEL-RETRY", orderId, 0)).join())
+                .hasRootCauseInstanceOf(IllegalOrderTransitionException.class)
+                .hasRootCauseMessage(message);
     }
 
     private SimulationEngine engine() {
