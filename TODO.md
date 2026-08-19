@@ -29,11 +29,11 @@ ADAPTER-03, ADAPTER-04는 독립적으로 진행 가능
 
 ### CORE-01 주문 조회 계약
 
-- [ ] `OrderQuery`를 추가한다.
-- [ ] `OrderView`를 추가한다.
-- [ ] `EnginePort.query(OrderQuery)`를 추가한다.
-- [ ] 조회도 DES 큐를 통과하게 한다.
-- [ ] 접수·부분체결·체결·취소 상태 조회 테스트를 작성한다.
+- [x] `OrderQuery`를 추가한다.
+- [x] `OrderView`를 추가한다.
+- [x] `EnginePort.query(OrderQuery)`를 추가한다.
+- [x] 조회도 DES 큐를 통과하게 한다.
+- [x] 접수·부분체결·체결·취소 상태 조회 테스트를 작성한다.
 
 완료 조건:
 
