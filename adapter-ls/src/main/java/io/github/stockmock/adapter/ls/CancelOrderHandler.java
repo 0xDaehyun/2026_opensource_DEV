@@ -4,41 +4,25 @@ import com.fasterxml.jackson.databind.JsonNode;
 import io.github.stockmock.core.engine.CancelOrder;
 import io.github.stockmock.core.engine.EnginePort;
 import io.github.stockmock.core.engine.OrderResult;
+import org.springframework.stereotype.Component;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * TODO(ADAPTER-02): LS 미체결 주문 전량 취소를 구현한다.
+ * LS 미체결 주문 전량 취소 handler다.
  *
- * <h2>입력</h2>
- * <ul>
- *   <li>{@code inBlock}: 공식 LS 취소 fixture와 같은 JSON object</li>
- *   <li>원주문번호: 취소 대상 core 주문번호</li>
- *   <li>clientOrderId: 취소 요청을 식별하는 비어 있지 않은 문자열</li>
- * </ul>
- *
- * <h2>처리</h2>
- * <ol>
- *   <li>InBlock을 검증한다.</li>
- *   <li>{@link CancelOrder}를 생성한다.</li>
- *   <li>{@link EnginePort#cancel(CancelOrder)}만 호출한다.</li>
- *   <li>{@link OrderResult}를 공식 LS OutBlock으로 변환한다.</li>
- * </ol>
- *
- * <h2>출력</h2>
- * <p>성공 시 주문번호, 취소 수량, 최종 상태와 LS 성공 봉투를 반환한다.</p>
- *
- * <h2>경계와 오류</h2>
- * <ul>
- *   <li>MVP는 부분 취소가 아니라 미체결 수량 전체를 취소한다.</li>
- *   <li>30/100주 부분체결 주문은 70주만 취소한다.</li>
- *   <li>FILLED, CANCELLED, REJECTED 주문 취소는 오류 봉투로 변환한다.</li>
- * </ul>
- *
- * <p>현금 반환과 상태 변경은 core의 책임이다. 구현 완료 후에만 {@code @Component}를 추가한다.</p>
+ * <p>MVP는 부분 취소를 지원하지 않으므로 {@link CancelOrder#qty()}는 항상 0(전량)으로
+ * 보낸다. {@code trCode}와 OutBlock 필드 이름({@code OrgOrdNo}, {@code CancQty} 등)은
+ * LS 공식 콘솔로 아직 확인되지 않은 임시 값이다. 공식 fixture를 확보하면 값을 교체한다.</p>
  */
+@Component
 final class CancelOrderHandler implements TrHandler {
     private final EnginePort engine;
+    private final LsErrorMapper errorMapper = new LsErrorMapper();
+    private final AtomicLong clientSequence = new AtomicLong();
 
     CancelOrderHandler(EnginePort engine) {
         this.engine = engine;
@@ -51,6 +35,55 @@ final class CancelOrderHandler implements TrHandler {
 
     @Override
     public Map<String, Object> handle(JsonNode inBlock) {
-        throw new UnsupportedOperationException("TODO(ADAPTER-02): 미체결 주문 전량 취소");
+        if (inBlock == null || !inBlock.isObject()) {
+            throw new LsRequestException("CSPAT00801InBlock1이 필요합니다");
+        }
+        String targetOrderId = requiredText(inBlock, "OrgOrdNo");
+        String clientOrderId = text(inBlock, "clientOrderId", "ls-cancel-" + clientSequence.incrementAndGet());
+
+        OrderResult result;
+        try {
+            result = engine.cancel(new CancelOrder(clientOrderId, targetOrderId, 0)).join();
+        } catch (CompletionException exception) {
+            return cancelFailureEnvelope(exception);
+        }
+
+        long cancelledQuantity = result.quantity() - result.filledQuantity();
+
+        Map<String, Object> outBlock = new LinkedHashMap<>();
+        outBlock.put("OrgOrdNo", targetOrderId);
+        outBlock.put("OrdNo", result.orderId());
+        outBlock.put("CancQty", cancelledQuantity);
+        outBlock.put("OrdStat", result.state().name());
+
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("rsp_cd", "00000");
+        response.put("rsp_msg", "취소가 완료되었습니다");
+        response.put("CSPAT00801OutBlock1", java.util.List.of(outBlock));
+        return response;
+    }
+
+    private Map<String, Object> cancelFailureEnvelope(CompletionException exception) {
+        Throwable cause = exception.getCause();
+        if (cause instanceof IllegalArgumentException) {
+            return errorMapper.toEnvelope(LsErrorType.ORDER_NOT_FOUND, cause.getMessage());
+        }
+        if (cause instanceof IllegalStateException) {
+            return errorMapper.toEnvelope(LsErrorType.ILLEGAL_ORDER_STATE, cause.getMessage());
+        }
+        throw exception;
+    }
+
+    private String requiredText(JsonNode node, String field) {
+        String value = text(node, field, null);
+        if (value == null || value.isBlank()) {
+            throw new LsRequestException(field + " 값이 필요합니다");
+        }
+        return value;
+    }
+
+    private String text(JsonNode node, String field, String fallback) {
+        JsonNode value = node.get(field);
+        return value == null || value.isNull() ? fallback : value.asText();
     }
 }
