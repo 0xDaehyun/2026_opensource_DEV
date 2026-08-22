@@ -6,6 +6,8 @@ import io.github.stockmock.core.engine.EnginePort;
 import io.github.stockmock.core.engine.OrderResult;
 import org.springframework.stereotype.Component;
 
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.CompletionException;
@@ -15,11 +17,15 @@ import java.util.concurrent.atomic.AtomicLong;
  * LS 미체결 주문 전량 취소 handler다.
  *
  * <p>MVP는 부분 취소를 지원하지 않으므로 {@link CancelOrder#qty()}는 항상 0(전량)으로
- * 보낸다. {@code trCode}와 OutBlock 필드 이름({@code OrgOrdNo}, {@code CancQty} 등)은
- * LS 공식 콘솔로 아직 확인되지 않은 임시 값이다. 공식 fixture를 확보하면 값을 교체한다.</p>
+ * 보낸다. 공식 응답({@code fixtures/cancel-order.json})은 취소 자체가 새 접수 이벤트인
+ * 것처럼 {@code OrdNo}(취소 접수번호)와 {@code PrntOrdNo}(원주문번호)를 구분해서 돌려주지만,
+ * core는 취소로 새 주문번호를 만들지 않고 원주문 상태만 바꾼다. 그래서 이 handler는
+ * {@code OrdNo}와 {@code PrntOrdNo}에 같은 core 주문번호를 넣는다(알려진 gap).</p>
  */
 @Component
 final class CancelOrderHandler implements TrHandler {
+    private static final DateTimeFormatter ORDER_TIME = DateTimeFormatter.ofPattern("HHmmssSSS")
+            .withZone(ZoneId.of("Asia/Seoul"));
     private final EnginePort engine;
     private final LsErrorMapper errorMapper = new LsErrorMapper();
     private final AtomicLong clientSequence = new AtomicLong();
@@ -30,7 +36,7 @@ final class CancelOrderHandler implements TrHandler {
 
     @Override
     public String trCode() {
-        return "CSPAT00801"; // TODO(ADAPTER-02): 공식 콘솔에서 취소 TR을 최종 확인한다.
+        return "CSPAT00801";
     }
 
     @Override
@@ -39,6 +45,8 @@ final class CancelOrderHandler implements TrHandler {
             throw new LsRequestException("CSPAT00801InBlock1이 필요합니다");
         }
         String targetOrderId = requiredText(inBlock, "OrgOrdNo");
+        String isuNo = text(inBlock, "IsuNo", "");
+        long ordQty = optionalLong(inBlock, "OrdQty");
         String clientOrderId = text(inBlock, "clientOrderId", "ls-cancel-" + clientSequence.incrementAndGet());
 
         OrderResult result;
@@ -48,18 +56,32 @@ final class CancelOrderHandler implements TrHandler {
             return cancelFailureEnvelope(exception);
         }
 
-        long cancelledQuantity = result.quantity() - result.filledQuantity();
+        Map<String, Object> outBlock1 = new LinkedHashMap<>();
+        outBlock1.put("RecCnt", 1);
+        outBlock1.put("AcntNo", text(inBlock, "AcntNo", "00000000000"));
+        outBlock1.put("OrgOrdNo", targetOrderId);
+        outBlock1.put("IsuNo", isuNo);
+        outBlock1.put("OrdQty", ordQty);
 
-        Map<String, Object> outBlock = new LinkedHashMap<>();
-        outBlock.put("OrgOrdNo", targetOrderId);
-        outBlock.put("OrdNo", result.orderId());
-        outBlock.put("CancQty", cancelledQuantity);
-        outBlock.put("OrdStat", result.state().name());
+        Map<String, Object> outBlock2 = new LinkedHashMap<>();
+        outBlock2.put("RecCnt", 1);
+        outBlock2.put("OrdNo", result.orderId());
+        outBlock2.put("PrntOrdNo", targetOrderId);
+        outBlock2.put("OrdTime", ORDER_TIME.format(java.time.Instant.EPOCH));
+        outBlock2.put("OrdMktCode", "10");
+        outBlock2.put("OrdPtnCode", "02");
 
+        Map<String, Object> blocks = new LinkedHashMap<>();
+        blocks.put("CSPAT00801OutBlock1", outBlock1);
+        blocks.put("CSPAT00801OutBlock2", outBlock2);
+        return envelope("00156", "취소주문이 완료되었습니다.", blocks);
+    }
+
+    private Map<String, Object> envelope(String code, String message, Map<String, Object> blocks) {
         Map<String, Object> response = new LinkedHashMap<>();
-        response.put("rsp_cd", "00000");
-        response.put("rsp_msg", "취소가 완료되었습니다");
-        response.put("CSPAT00801OutBlock1", java.util.List.of(outBlock));
+        response.put("rsp_cd", code);
+        response.put("rsp_msg", message);
+        response.putAll(blocks);
         return response;
     }
 
@@ -80,6 +102,11 @@ final class CancelOrderHandler implements TrHandler {
             throw new LsRequestException(field + " 값이 필요합니다");
         }
         return value;
+    }
+
+    private long optionalLong(JsonNode node, String field) {
+        JsonNode value = node.get(field);
+        return value == null || value.isNull() ? 0 : value.asLong();
     }
 
     private String text(JsonNode node, String field, String fallback) {

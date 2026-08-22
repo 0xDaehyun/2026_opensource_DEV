@@ -33,9 +33,16 @@ import static org.assertj.core.api.Assertions.assertThat;
  *       실제 t0425는 종목코드 기준 목록 조회+페이지네이션이지만, core가 단건 조회만 지원해서
  *       MVP는 의도적으로 주문번호 1건 조회로 단순화했다(팀 확인 완료). ordno 타입과 status
  *       한글 텍스트 전체 목록은 여전히 알려진 gap.</li>
- *   <li>취소(CSPAT00801):
- *       공식 콘솔 fixture 미확보. fixture가 도착하면 이 클래스에 검증 메서드를 추가한다.</li>
+ *   <li>취소(CSPAT00801): {@code fixtures/cancel-order.json} 확보, 검증 완료.
+ *       공식 응답에는 취소 수량·최종 상태 필드가 없어(취소는 새 접수번호를 매기는 별개 이벤트로
+ *       취급) 그 정보는 t0425로 확인해야 한다는 걸 반영해 응답에서 뺐다. OrdNo/PrntOrdNo 타입과
+ *       "새 취소 접수번호 대 원주문번호 구분"은 알려진 gap.</li>
  * </ul>
+ *
+ * <h2>다섯 API 완료</h2>
+ * 토큰 발급, 잔고 조회, 매수, 주문 조회, 취소 다섯 API 모두 공식 fixture를 확보하고 구조·타입
+ * 계약 테스트를 통과했다(ADAPTER-05 완료). 남은 알려진 gap은 각 fixture의 {@code knownGaps}/
+ * {@code openQuestions}와 이 클래스의 타입 제외(exempt) 필드에 기록돼 있다.
  */
 class LsFixtureContractTest {
     private static final Instant START = Instant.parse("2026-01-02T00:00:00Z");
@@ -151,6 +158,42 @@ class LsFixtureContractTest {
     }
 
     @Test
+    void cancelOrderResponseUsesTheOfficialOutBlockShapeAndFieldTypes() throws Exception {
+        JsonNode fixture = readFixture("cancel-order.json");
+        JsonNode officialOutBlock1Fields = fixture.path("response").path("outBlock1Fields");
+        JsonNode officialOutBlock2Fields = fixture.path("response").path("outBlock2Fields");
+
+        try (SimulationEngine engine = attachedEngine()) {
+            CancelOrderHandler handler = new CancelOrderHandler(engine);
+            var accepted = engine.submit(
+                    new PlaceOrder("CLIENT-1", new Symbol("005930"), Side.BUY, 100, 70_000)).join();
+            JsonNode inBlock = objectMapper.readTree(
+                    "{\"OrgOrdNo\": \"" + accepted.orderId() + "\", \"IsuNo\": \"A005930\", \"OrdQty\": 100}");
+
+            JsonNode actual = objectMapper.valueToTree(handler.handle(inBlock));
+
+            assertThat(actual.path("rsp_cd").asText())
+                    .as("취소 성공 rsp_cd는 공식 fixture의 값(%s)과 같아야 한다",
+                            fixture.path("response").path("successRspCd").asText())
+                    .isEqualTo(fixture.path("response").path("successRspCd").asText());
+
+            assertThat(actual.path("CSPAT00801OutBlock1").isObject())
+                    .as("CSPAT00801OutBlock1은 배열이 아니라 공식 응답처럼 object여야 한다")
+                    .isTrue();
+            assertThat(actual.path("CSPAT00801OutBlock2").isObject())
+                    .as("CSPAT00801OutBlock2는 배열이 아니라 공식 응답처럼 object여야 한다")
+                    .isTrue();
+
+            // OrgOrdNo/OrdNo/PrntOrdNo는 알려진 타입 gap(공식 number, 현재 core 문자열)이라 타입 검사에서 제외한다.
+            assertFieldsAreOfficialSubset(officialOutBlock1Fields, actual.path("CSPAT00801OutBlock1"),
+                    Set.of("RecCnt", "AcntNo", "OrgOrdNo", "IsuNo", "OrdQty"), Set.of("OrgOrdNo"));
+            assertFieldsAreOfficialSubset(officialOutBlock2Fields, actual.path("CSPAT00801OutBlock2"),
+                    Set.of("RecCnt", "OrdNo", "PrntOrdNo", "OrdTime", "OrdMktCode", "OrdPtnCode"),
+                    Set.of("OrdNo", "PrntOrdNo"));
+        }
+    }
+
+    @Test
     void fixtureSampleValuesUseOurSanitizedPlaceholdersNotRealSecrets() throws Exception {
         assertSanitizedSample("token-issue.json", Map.of(
                 "appkey", "SAMPLE",
@@ -158,6 +201,10 @@ class LsFixtureContractTest {
                 "access_token", "SAMPLE"));
         assertSanitizedSample("cash-buy-order.json", Map.of(
                 "AcntNo", "SAMPLE",
+                "MgempNo", "SAMPLE"));
+        assertSanitizedSample("cancel-order.json", Map.of(
+                "AcntNo", "SAMPLE",
+                "AcntNm", "SAMPLE",
                 "MgempNo", "SAMPLE"));
     }
 
