@@ -40,9 +40,9 @@ class LsApiSmokeTest {
                         .content("{\"t0424InBlock\": {\"accno\": \"12345678901\"}}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.rsp_cd").value("00000"))
-                .andExpect(jsonPath("$.t0424OutBlock[0].sunamt").value("3000000"))
-                .andExpect(jsonPath("$.t0424OutBlock[0].mamt").value("4900000"))
+                .andExpect(jsonPath("$.t0424OutBlock.sunamt").value(3_000_000))
+                .andExpect(jsonPath("$.t0424OutBlock.mamt").value(4_900_000))
                 .andExpect(jsonPath("$.t0424OutBlock1[0].expcode").value("005930"))
-                .andExpect(jsonPath("$.t0424OutBlock1[0].janqty").value("30"));
+                .andExpect(jsonPath("$.t0424OutBlock1[0].janqty").value(30));
     }
 }
