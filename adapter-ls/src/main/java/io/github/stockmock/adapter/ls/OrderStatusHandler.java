@@ -2,44 +2,28 @@ package io.github.stockmock.adapter.ls;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import io.github.stockmock.core.engine.EnginePort;
+import io.github.stockmock.core.engine.OrderQuery;
+import io.github.stockmock.core.engine.OrderView;
+import io.github.stockmock.core.error.CoreErrorCode;
+import io.github.stockmock.core.error.CoreException;
+import io.github.stockmock.core.order.Side;
+import org.springframework.stereotype.Component;
 
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletionException;
 
 /**
- * TODO(ADAPTER-01): LS 주문 상태·미체결 조회를 구현한다.
+ * LS 주문 상태·미체결 조회 handler다.
  *
- * <h2>선행 조건</h2>
- * <p>core에 {@code OrderQuery}, {@code OrderView},
- * {@code EnginePort.query(OrderQuery)}가 병합되어야 한다.</p>
- *
- * <h2>입력</h2>
- * <ul>
- *   <li>{@code inBlock}: 공식 LS fixture와 같은 JSON object</li>
- *   <li>대상 주문번호: 비어 있지 않은 문자열</li>
- * </ul>
- *
- * <h2>출력</h2>
- * <p>{@code rsp_cd}, {@code rsp_msg}와 다음 값을 가진 주문 조회 OutBlock:</p>
- * <ul>
- *   <li>주문번호</li>
- *   <li>주문 상태</li>
- *   <li>전체 주문 수량</li>
- *   <li>체결 수량</li>
- *   <li>미체결 수량</li>
- *   <li>주문 가격</li>
- * </ul>
- *
- * <h2>오류</h2>
- * <ul>
- *   <li>InBlock 또는 주문번호 누락: {@link LsRequestException}</li>
- *   <li>주문 없음: {@link LsErrorMapper}를 통해 ORDER_NOT_FOUND 봉투 반환</li>
- * </ul>
- *
- * <p>이 클래스는 주문 상태를 계산하거나 core 내부 객체를 직접 조회하지 않는다.
- * 구현 완료 후에만 {@code @Component}를 추가한다.</p>
+ * <p>{@code trCode}와 OutBlock 필드 이름({@code OrdNo}, {@code OrdStat} 등)은
+ * LS 공식 콘솔로 아직 확인되지 않은 임시 값이다. 공식 fixture를 확보하면 값을 교체한다.</p>
  */
+@Component
 final class OrderStatusHandler implements TrHandler {
     private final EnginePort engine;
+    private final LsErrorMapper errorMapper = new LsErrorMapper();
 
     OrderStatusHandler(EnginePort engine) {
         this.engine = engine;
@@ -52,6 +36,48 @@ final class OrderStatusHandler implements TrHandler {
 
     @Override
     public Map<String, Object> handle(JsonNode inBlock) {
-        throw new UnsupportedOperationException("TODO(ADAPTER-01): 주문 상태 조회");
+        if (inBlock == null || !inBlock.isObject()) {
+            throw new LsRequestException("t0425InBlock이 필요합니다");
+        }
+        String orderId = requiredText(inBlock, "OrdNo");
+
+        OrderView order;
+        try {
+            order = engine.query(new OrderQuery(orderId)).join();
+        } catch (CompletionException exception) {
+            return orderNotFoundEnvelope(exception);
+        }
+
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("OrdNo", order.orderId());
+        row.put("IsuNo", order.symbol().value());
+        row.put("BnsTpCode", order.side() == Side.BUY ? "2" : "1");
+        row.put("OrdStat", order.state().name());
+        row.put("OrdQty", order.quantity());
+        row.put("ExecQty", order.filledQuantity());
+        row.put("UnastQty", order.remainingQuantity());
+        row.put("OrdPrc", order.price());
+
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("rsp_cd", "00000");
+        response.put("rsp_msg", "조회완료");
+        response.put("t0425OutBlock", List.of(row));
+        return response;
+    }
+
+    private Map<String, Object> orderNotFoundEnvelope(CompletionException exception) {
+        if (exception.getCause() instanceof CoreException coreFailure
+                && coreFailure.code() == CoreErrorCode.ORDER_NOT_FOUND) {
+            return errorMapper.toEnvelope(LsErrorType.ORDER_NOT_FOUND, coreFailure.getMessage());
+        }
+        throw exception;
+    }
+
+    private String requiredText(JsonNode node, String field) {
+        JsonNode value = node.get(field);
+        if (value == null || value.isNull() || value.asText().isBlank()) {
+            throw new LsRequestException(field + " 값이 필요합니다");
+        }
+        return value.asText();
     }
 }
