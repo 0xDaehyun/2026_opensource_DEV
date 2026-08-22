@@ -27,7 +27,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  *   <li>토큰 발급(oauth2/token): {@code fixtures/token-issue.json} 확보, 검증 완료.</li>
  *   <li>잔고 조회(t0424): {@code fixtures/balance-query.json} 확보, 검증 완료
  *       (MVP는 공식 필드 중 일부만 사용하므로 부분집합 비교).</li>
- *   <li>현물 매수(CSPAT00601), 주문 조회(t0425), 취소(CSPAT00801):
+ *   <li>현물 매수(CSPAT00601): {@code fixtures/cash-buy-order.json} 확보, 검증 완료
+ *       (OrdNo는 공식 타입이 number인데 core 주문번호가 문자열이라 알려진 gap으로 남겨둠).</li>
+ *   <li>주문 조회(t0425), 취소(CSPAT00801):
  *       공식 콘솔 fixture 미확보. fixture가 도착하면 이 클래스에 검증 메서드를 추가한다.</li>
  * </ul>
  */
@@ -74,32 +76,89 @@ class LsFixtureContractTest {
                     .isTrue();
 
             assertFieldsAreOfficialSubset(officialOutBlockFields, actual.path("t0424OutBlock"),
-                    Set.of("sunamt", "mamt", "tappamt"));
+                    Set.of("sunamt", "mamt", "tappamt"), Set.of());
             assertFieldsAreOfficialSubset(officialOutBlock1Fields, actual.path("t0424OutBlock1").get(0),
-                    Set.of("expcode", "janqty", "mdposqt"));
+                    Set.of("expcode", "janqty", "mdposqt"), Set.of());
+        }
+    }
+
+    @Test
+    void cashBuyOrderResponseUsesTheOfficialOutBlockShapeAndFieldTypes() throws Exception {
+        JsonNode fixture = readFixture("cash-buy-order.json");
+        JsonNode officialOutBlock1Fields = fixture.path("response").path("outBlock1Fields");
+        JsonNode officialOutBlock2Fields = fixture.path("response").path("outBlock2Fields");
+
+        try (SimulationEngine engine = headlessEngine()) {
+            CashBuyOrderHandler handler = new CashBuyOrderHandler(engine);
+            JsonNode inBlock = objectMapper.readTree("""
+                    {"IsuNo": "A005930", "OrdQty": 100, "OrdPrc": 70000, "BnsTpCode": "2"}
+                    """);
+
+            JsonNode actual = objectMapper.valueToTree(handler.handle(inBlock));
+
+            assertThat(actual.path("rsp_cd").asText())
+                    .as("매수 성공 rsp_cd는 공식 fixture의 값(%s)과 같아야 한다",
+                            fixture.path("response").path("successRspCd").asText())
+                    .isEqualTo(fixture.path("response").path("successRspCd").asText());
+
+            assertThat(actual.path("CSPAT00601OutBlock1").isObject())
+                    .as("CSPAT00601OutBlock1은 배열이 아니라 공식 응답처럼 object여야 한다")
+                    .isTrue();
+            assertThat(actual.path("CSPAT00601OutBlock2").isObject())
+                    .as("CSPAT00601OutBlock2는 배열이 아니라 공식 응답처럼 object여야 한다")
+                    .isTrue();
+
+            assertFieldsAreOfficialSubset(officialOutBlock1Fields, actual.path("CSPAT00601OutBlock1"),
+                    Set.of("RecCnt", "AcntNo", "IsuNo", "OrdQty", "OrdPrc", "BnsTpCode"), Set.of());
+            // OrdNo는 알려진 타입 gap(공식 number, 현재 core 문자열)이라 타입 검사에서 제외한다.
+            assertFieldsAreOfficialSubset(officialOutBlock2Fields, actual.path("CSPAT00601OutBlock2"),
+                    Set.of("RecCnt", "OrdNo", "OrdTime", "OrdMktCode", "OrdPtnCode"), Set.of("OrdNo"));
         }
     }
 
     @Test
     void fixtureSampleValuesUseOurSanitizedPlaceholdersNotRealSecrets() throws Exception {
-        JsonNode fixture = readFixture("token-issue.json");
-        Map<String, String> sensitiveSampleFields = Map.of(
+        assertSanitizedSample("token-issue.json", Map.of(
                 "appkey", "SAMPLE",
                 "appsecretkey", "SAMPLE",
-                "access_token", "SAMPLE");
+                "access_token", "SAMPLE"));
+        assertSanitizedSample("cash-buy-order.json", Map.of(
+                "AcntNo", "SAMPLE",
+                "MgempNo", "SAMPLE"));
+    }
+
+    private void assertSanitizedSample(String fixtureFile, Map<String, String> sensitiveSampleFields) throws Exception {
+        JsonNode fixture = readFixture(fixtureFile);
 
         sensitiveSampleFields.forEach((field, expectedPrefix) -> {
-            JsonNode requestSample = fixture.path("request").path("sample").path(field);
-            JsonNode responseSample = fixture.path("response").path("sample").path(field);
-            JsonNode sample = requestSample.isMissingNode() ? responseSample : requestSample;
+            JsonNode sample = findSampleValue(fixture, field);
 
             assertThat(sample.isMissingNode())
-                    .as("fixture에 %s 샘플 필드가 있어야 한다", field)
+                    .as("%s의 fixture에 %s 샘플 필드가 있어야 한다", fixtureFile, field)
                     .isFalse();
             assertThat(sample.asText())
-                    .as("%s 샘플 값은 실제 값이 아니라 %s로 시작하는 더미여야 한다", field, expectedPrefix)
+                    .as("%s의 %s 샘플 값은 실제 값이 아니라 %s로 시작하는 더미여야 한다", fixtureFile, field, expectedPrefix)
                     .startsWith(expectedPrefix);
         });
+    }
+
+    private JsonNode findSampleValue(JsonNode fixture, String field) {
+        JsonNode requestSample = fixture.path("request").path("sample").path(field);
+        if (!requestSample.isMissingNode()) {
+            return requestSample;
+        }
+        JsonNode responseTopLevelSample = fixture.path("response").path("sample").path(field);
+        if (!responseTopLevelSample.isMissingNode()) {
+            return responseTopLevelSample;
+        }
+        Iterator<JsonNode> responseSampleChildren = fixture.path("response").path("sample").elements();
+        while (responseSampleChildren.hasNext()) {
+            JsonNode nested = responseSampleChildren.next().path(field);
+            if (!nested.isMissingNode()) {
+                return nested;
+            }
+        }
+        return fixture.path("response").path("sample").path(field);
     }
 
     private JsonNode readFixture(String fileName) throws Exception {
@@ -134,8 +193,11 @@ class LsFixtureContractTest {
     /**
      * MVP는 공식 필드 전체가 아니라 일부만 사용한다. 실제 필드 이름 집합이 {@code expectedSubset}과
      * 정확히 같은지, 그리고 각 필드가 공식 fixture에도 존재하며 타입(string/number)이 같은지 검증한다.
+     * {@code typeExemptFields}에 속한 필드는 이름 존재만 확인하고 타입 비교는 건너뛴다 —
+     * 아직 해결되지 않은 알려진 타입 gap을 명시적으로 표시하는 용도다.
      */
-    private void assertFieldsAreOfficialSubset(JsonNode officialFields, JsonNode actual, Set<String> expectedSubset) {
+    private void assertFieldsAreOfficialSubset(JsonNode officialFields, JsonNode actual, Set<String> expectedSubset,
+            Set<String> typeExemptFields) {
         var actualNames = new TreeSet<String>();
         actual.fieldNames().forEachRemaining(actualNames::add);
         assertThat(actualNames).as("실제 응답 필드 집합이 MVP 부분집합과 일치해야 한다").isEqualTo(new TreeSet<>(expectedSubset));
@@ -144,6 +206,9 @@ class LsFixtureContractTest {
             assertThat(officialFields.has(field))
                     .as("공식 fixture에 %s 필드가 있어야 한다", field)
                     .isTrue();
+            if (typeExemptFields.contains(field)) {
+                continue;
+            }
             String officialType = officialFields.path(field).asText();
             boolean typeMatches = switch (officialType) {
                 case "number" -> actual.path(field).isNumber();

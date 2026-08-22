@@ -32,8 +32,8 @@ class LsApiSmokeTest {
                                 }}
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.rsp_cd").value("00000"))
-                .andExpect(jsonPath("$.CSPAT00601OutBlock2[0].OrdNo").value("ORD-000001"));
+                .andExpect(jsonPath("$.rsp_cd").value("00040"))
+                .andExpect(jsonPath("$.CSPAT00601OutBlock2.OrdNo").value("ORD-000001"));
 
         mockMvc.perform(post("/stock/accno")
                         .contentType(MediaType.APPLICATION_JSON)
