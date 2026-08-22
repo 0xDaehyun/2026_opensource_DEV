@@ -29,7 +29,11 @@ import static org.assertj.core.api.Assertions.assertThat;
  *       (MVP는 공식 필드 중 일부만 사용하므로 부분집합 비교).</li>
  *   <li>현물 매수(CSPAT00601): {@code fixtures/cash-buy-order.json} 확보, 검증 완료
  *       (OrdNo는 공식 타입이 number인데 core 주문번호가 문자열이라 알려진 gap으로 남겨둠).</li>
- *   <li>주문 조회(t0425), 취소(CSPAT00801):
+ *   <li>주문 조회(t0425): {@code fixtures/order-status-query.json} 확보, 검증 완료.
+ *       실제 t0425는 종목코드 기준 목록 조회+페이지네이션이지만, core가 단건 조회만 지원해서
+ *       MVP는 의도적으로 주문번호 1건 조회로 단순화했다(팀 확인 완료). ordno 타입과 status
+ *       한글 텍스트 전체 목록은 여전히 알려진 gap.</li>
+ *   <li>취소(CSPAT00801):
  *       공식 콘솔 fixture 미확보. fixture가 도착하면 이 클래스에 검증 메서드를 추가한다.</li>
  * </ul>
  */
@@ -113,6 +117,36 @@ class LsFixtureContractTest {
             // OrdNo는 알려진 타입 gap(공식 number, 현재 core 문자열)이라 타입 검사에서 제외한다.
             assertFieldsAreOfficialSubset(officialOutBlock2Fields, actual.path("CSPAT00601OutBlock2"),
                     Set.of("RecCnt", "OrdNo", "OrdTime", "OrdMktCode", "OrdPtnCode"), Set.of("OrdNo"));
+        }
+    }
+
+    @Test
+    void orderStatusResponseUsesTheOfficialOutBlockShapeAndFieldTypes() throws Exception {
+        JsonNode fixture = readFixture("order-status-query.json");
+        JsonNode officialOutBlock1Fields = fixture.path("response").path("outBlock1ItemFields");
+        JsonNode officialOutBlockFields = fixture.path("response").path("outBlockFields");
+
+        try (SimulationEngine engine = attachedEngine()) {
+            OrderStatusHandler handler = new OrderStatusHandler(engine);
+            var accepted = engine.submit(
+                    new PlaceOrder("CLIENT-1", new Symbol("005930"), Side.BUY, 100, 70_000)).join();
+            JsonNode inBlock = objectMapper.readTree("{\"OrdNo\": \"" + accepted.orderId() + "\"}");
+
+            JsonNode actual = objectMapper.valueToTree(handler.handle(inBlock));
+
+            assertThat(actual.path("t0425OutBlock1").isArray())
+                    .as("t0425OutBlock1은 공식 응답처럼 array여야 한다")
+                    .isTrue();
+            assertThat(actual.path("t0425OutBlock").isObject())
+                    .as("t0425OutBlock은 배열이 아니라 공식 응답처럼 합계 object여야 한다")
+                    .isTrue();
+
+            // ordno는 알려진 타입 gap(공식 number, 현재 core 문자열)이라 타입 검사에서 제외한다.
+            assertFieldsAreOfficialSubset(officialOutBlock1Fields, actual.path("t0425OutBlock1").get(0),
+                    Set.of("ordno", "expcode", "medosu", "qty", "cheqty", "ordrem", "price", "status"),
+                    Set.of("ordno"));
+            assertFieldsAreOfficialSubset(officialOutBlockFields, actual.path("t0425OutBlock"),
+                    Set.of("tqty", "tcheqty", "tordrem"), Set.of());
         }
     }
 
@@ -223,5 +257,9 @@ class LsFixtureContractTest {
 
     private SimulationEngine headlessEngine() {
         return new SimulationEngine(VirtualClock.headless(START), 10_000_000, 0.3, Duration.ofSeconds(5));
+    }
+
+    private SimulationEngine attachedEngine() {
+        return new SimulationEngine(VirtualClock.attached(START), 10_000_000, 0.3, Duration.ofHours(1));
     }
 }

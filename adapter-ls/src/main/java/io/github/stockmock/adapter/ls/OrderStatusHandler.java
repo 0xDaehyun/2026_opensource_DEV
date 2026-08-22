@@ -17,8 +17,19 @@ import java.util.concurrent.CompletionException;
 /**
  * LS 주문 상태·미체결 조회 handler다.
  *
- * <p>{@code trCode}와 OutBlock 필드 이름({@code OrdNo}, {@code OrdStat} 등)은
- * LS 공식 콘솔로 아직 확인되지 않은 임시 값이다. 공식 fixture를 확보하면 값을 교체한다.</p>
+ * <p><b>알려진 범위 축소(MVP):</b> 공식 t0425는 {@code expcode}(종목코드) 기준으로 여러 주문을
+ * 목록 조회하고 {@code cts_ordno}로 페이지네이션한다({@code fixtures/order-status-query.json}
+ * 참고). core의 {@code EnginePort.query(OrderQuery)}는 주문번호 1건 단건 조회만 지원하므로,
+ * 이 handler는 의도적으로 입력을 {@code OrdNo}(단일 주문번호) 하나로 단순화했다. 목록 조회가
+ * 필요해지면 core에 새 조회 기능을 요청해야 한다.</p>
+ *
+ * <p>출력 모양({@code t0425OutBlock1} 배열 + {@code t0425OutBlock} 합계)과 필드 이름은
+ * fixture로 확인했지만, 다음은 여전히 알려진 gap이다:</p>
+ * <ul>
+ *   <li>{@code ordno}는 공식 응답에서 숫자지만 core 주문번호가 문자열이라 그대로 노출한다.</li>
+ *   <li>{@code status}는 공식 응답에서 "접수"만 확인했다. 체결·일부체결·취소의 실제 텍스트는
+ *       미확인이라 core {@code OrderState} enum 이름을 그대로 쓴다.</li>
+ * </ul>
  */
 @Component
 final class OrderStatusHandler implements TrHandler {
@@ -31,7 +42,7 @@ final class OrderStatusHandler implements TrHandler {
 
     @Override
     public String trCode() {
-        return "t0425"; // TODO(ADAPTER-01): 공식 콘솔에서 MVP 조회 TR을 최종 확인한다.
+        return "t0425";
     }
 
     @Override
@@ -49,19 +60,25 @@ final class OrderStatusHandler implements TrHandler {
         }
 
         Map<String, Object> row = new LinkedHashMap<>();
-        row.put("OrdNo", order.orderId());
-        row.put("IsuNo", order.symbol().value());
-        row.put("BnsTpCode", order.side() == Side.BUY ? "2" : "1");
-        row.put("OrdStat", order.state().name());
-        row.put("OrdQty", order.quantity());
-        row.put("ExecQty", order.filledQuantity());
-        row.put("UnastQty", order.remainingQuantity());
-        row.put("OrdPrc", order.price());
+        row.put("ordno", order.orderId());
+        row.put("expcode", order.symbol().value());
+        row.put("medosu", order.side() == Side.BUY ? "매수" : "매도");
+        row.put("qty", order.quantity());
+        row.put("cheqty", order.filledQuantity());
+        row.put("ordrem", order.remainingQuantity());
+        row.put("price", order.price());
+        row.put("status", order.state().name());
+
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("tqty", order.quantity());
+        summary.put("tcheqty", order.filledQuantity());
+        summary.put("tordrem", order.remainingQuantity());
 
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("rsp_cd", "00000");
-        response.put("rsp_msg", "조회완료");
-        response.put("t0425OutBlock", List.of(row));
+        response.put("rsp_msg", "조회가 완료되었습니다.");
+        response.put("t0425OutBlock1", List.of(row));
+        response.put("t0425OutBlock", summary);
         return response;
     }
 

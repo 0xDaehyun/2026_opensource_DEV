@@ -108,14 +108,19 @@ class OrderStatusHandlerTest {
     @SuppressWarnings("unchecked")
     private void assertRow(Map<String, Object> response, String orderId, String state,
             long qty, long filled, long remaining) {
-        List<Map<String, Object>> rows = (List<Map<String, Object>>) response.get("t0425OutBlock");
+        List<Map<String, Object>> rows = (List<Map<String, Object>>) response.get("t0425OutBlock1");
         assertThat(rows).hasSize(1);
         Map<String, Object> row = rows.get(0);
-        assertThat(row.get("OrdNo")).isEqualTo(orderId);
-        assertThat(row.get("OrdStat")).isEqualTo(state);
-        assertThat(row.get("OrdQty")).isEqualTo(qty);
-        assertThat(row.get("ExecQty")).isEqualTo(filled);
-        assertThat(row.get("UnastQty")).isEqualTo(remaining);
+        assertThat(row.get("ordno")).isEqualTo(orderId);
+        assertThat(row.get("status")).isEqualTo(state);
+        assertThat(row.get("qty")).isEqualTo(qty);
+        assertThat(row.get("cheqty")).isEqualTo(filled);
+        assertThat(row.get("ordrem")).isEqualTo(remaining);
+
+        Map<String, Object> summary = (Map<String, Object>) response.get("t0425OutBlock");
+        assertThat(summary.get("tqty")).isEqualTo(qty);
+        assertThat(summary.get("tcheqty")).isEqualTo(filled);
+        assertThat(summary.get("tordrem")).isEqualTo(remaining);
     }
 
     private SimulationEngine headlessEngine(double fillRatio) {
