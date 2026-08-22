@@ -90,11 +90,14 @@ ADAPTER-03, ADAPTER-04는 독립적으로 진행 가능
 
 ### ADAPTER-04 공통 LS 오류 봉투
 
-- [ ] `INVALID_REQUEST`를 LS 오류로 변환한다.
-- [ ] `ORDER_NOT_FOUND`를 LS 오류로 변환한다.
-- [ ] `INSUFFICIENT_FUNDS`를 LS 오류로 변환한다.
-- [ ] `ILLEGAL_ORDER_STATE`를 LS 오류로 변환한다.
-- [ ] core에 `rsp_cd`, TR, InBlock 용어를 추가하지 않는다.
+- [x] `INVALID_REQUEST`를 LS 오류로 변환한다.
+- [x] `ORDER_NOT_FOUND`를 LS 오류로 변환한다.
+- [x] `INSUFFICIENT_FUNDS`를 LS 오류로 변환한다.
+- [x] `ILLEGAL_ORDER_STATE`를 LS 오류로 변환한다.
+- [x] core에 `rsp_cd`, TR, InBlock 용어를 추가하지 않는다.
+
+`rsp_cd` 값은 LS 공식 콘솔 확인 전까지 임시값이다. 취소 실패와 증거금 부족은 core가
+`CoreException`을 던지지 않아 아직 이 봉투에 도달하지 않는다. `CORE-03` 참고.
 
 ### ADAPTER-05 계약 fixture 테스트
 
