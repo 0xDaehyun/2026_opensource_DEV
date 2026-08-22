@@ -42,7 +42,7 @@ public final class TokenController {
         }
 
         String accessToken = "mock-" + UUID.randomUUID();
-        return new TokenResponse(accessToken, "Bearer", configuredTtl.toSeconds());
+        return new TokenResponse(accessToken, request.scope(), "Bearer", configuredTtl.toSeconds());
     }
 
     private void requireNonBlank(String value, String fieldName) {
