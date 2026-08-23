@@ -96,8 +96,14 @@ ADAPTER-03, ADAPTER-04는 독립적으로 진행 가능
 - [x] `ILLEGAL_ORDER_STATE`를 LS 오류로 변환한다.
 - [x] core에 `rsp_cd`, TR, InBlock 용어를 추가하지 않는다.
 
-`rsp_cd` 값은 LS 공식 콘솔 확인 전까지 임시값이다. 취소 실패와 증거금 부족은 core가
-`CoreException`을 던지지 않아 아직 이 봉투에 도달하지 않는다. `CORE-03` 참고.
+`rsp_cd` 값은 LS 공식 콘솔 확인 전까지 임시값이다. 409와 429는 AGENTS.md 6절의 관측
+목록에 없는 추정값이며 `ADAPTER-05` 확인 대상이다.
+
+core가 아직 `CoreException`을 던지지 않는 경로는 `LsErrorMapper.classify()`가 예외 타입으로
+임시 판정한다. 증거금 부족은 예외가 아니라 `OrderResult(REJECTED)`로 오므로 이 봉투에
+도달하지 않고, 취소 실패는 도달하되 코드가 아닌 타입으로 판정된다. `CORE-03`에서 core가
+`CoreException(INVALID_REQUEST / ORDER_NOT_FOUND / ILLEGAL_ORDER_STATE)`을 던지면
+`classify()`의 타입 판정 갈래를 제거한다.
 
 ### ADAPTER-05 계약 fixture 테스트
 
