@@ -15,20 +15,15 @@ import java.util.concurrent.CompletionException;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * TODO(ADAPTER-04): 컨트롤러가 던지는 오류가 하나의 LS 봉투로 나가는지 확인한다.
- *
- * <p>adapter-ls에는 Spring test와 MockMvc 의존성이 없으므로 {@code @ExceptionHandler}
- * 메서드를 직접 호출해 검증한다. 실제 라우팅 검증은 {@code @RestControllerAdvice} 전환과
- * 함께 다음 커밋에서 추가한다. 깨진 JSON·405·415처럼 Spring이 먼저 처리하는 예외는
- * 아직 이 봉투를 타지 않는다.</p>
+ * 오류 분류와 봉투 내용을 검증한다. 이 예외들이 실제로 라우팅되는지는
+ * {@link LsErrorRoutingTest}가 MockMvc로 확인한다.
  */
-class LsControllerErrorTest {
-    private final LsController controller = new LsController(
-            new LsTrDispatcher(List.of()), new LsErrorMapper());
+class LsErrorAdviceTest {
+    private final LsErrorAdvice advice = new LsErrorAdvice(new LsErrorMapper());
 
     @Test
     void mapsACoreExceptionByItsCodeNotItsMessage() {
-        ResponseEntity<Map<String, Object>> response = controller.engineFailure(
+        ResponseEntity<Map<String, Object>> response = advice.engineFailure(
                 new CoreException(CoreErrorCode.ORDER_NOT_FOUND, "주문을 찾을 수 없습니다"));
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
@@ -40,7 +35,7 @@ class LsControllerErrorTest {
         CompletionException wrapped = new CompletionException(
                 new CoreException(CoreErrorCode.ILLEGAL_ORDER_STATE, "취소할 수 없습니다"));
 
-        ResponseEntity<Map<String, Object>> response = controller.engineFailure(wrapped);
+        ResponseEntity<Map<String, Object>> response = advice.engineFailure(wrapped);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
         assertThat(response.getBody()).containsEntry("rsp_cd", "40900");
@@ -52,7 +47,7 @@ class LsControllerErrorTest {
      */
     @Test
     void reportsAnIllegalTransitionAsAConflictNotAnInternalError() {
-        ResponseEntity<Map<String, Object>> response = controller.engineFailure(
+        ResponseEntity<Map<String, Object>> response = advice.engineFailure(
                 new CompletionException(new IllegalOrderTransitionException(OrderState.FILLED, "취소")));
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
@@ -62,7 +57,7 @@ class LsControllerErrorTest {
     /** core가 아직 코드 없이 던지는 봇 잘못은 400을 유지한다. TODO(CORE-03). */
     @Test
     void keepsCoreClientErrorsAsBadRequest() {
-        ResponseEntity<Map<String, Object>> response = controller.engineFailure(
+        ResponseEntity<Map<String, Object>> response = advice.engineFailure(
                 new CompletionException(new IllegalArgumentException("중복 clientOrderId입니다")));
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
@@ -75,7 +70,7 @@ class LsControllerErrorTest {
      */
     @Test
     void reportsTheMockOwnFailureAsInternalServerError() {
-        ResponseEntity<Map<String, Object>> response = controller.engineFailure(
+        ResponseEntity<Map<String, Object>> response = advice.engineFailure(
                 new CompletionException(new IllegalStateException("계좌 원장 불변식이 깨졌습니다")));
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
@@ -84,7 +79,7 @@ class LsControllerErrorTest {
 
     @Test
     void neverLeaksAJavaClassNameToTheBot() {
-        ResponseEntity<Map<String, Object>> response = controller.engineFailure(
+        ResponseEntity<Map<String, Object>> response = advice.engineFailure(
                 new CompletionException(new IllegalStateException("알 수 없는 실패")));
 
         assertThat(response.getBody()).containsOnlyKeys("rsp_cd", "rsp_msg");
@@ -95,7 +90,7 @@ class LsControllerErrorTest {
     @Test
     void keepsTheUnknownTrEnvelope() {
         ResponseEntity<Map<String, Object>> response =
-                controller.unknownTr(new UnknownTrException("지원하지 않는 TR입니다"));
+                advice.unknownTr(new UnknownTrException("지원하지 않는 TR입니다"));
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
         assertThat(response.getBody()).containsEntry("rsp_cd", "40400");
@@ -104,7 +99,7 @@ class LsControllerErrorTest {
     @Test
     void keepsTheBadRequestEnvelope() {
         ResponseEntity<Map<String, Object>> response =
-                controller.badRequest(new LsRequestException("IsuNo 값이 필요합니다"));
+                advice.badRequest(new LsRequestException("IsuNo 값이 필요합니다"));
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(response.getBody()).containsEntry("rsp_cd", "40000");
@@ -113,10 +108,10 @@ class LsControllerErrorTest {
     @Test
     void everyErrorResponseCarriesExactlyTheLsEnvelopeKeys() {
         List<ResponseEntity<Map<String, Object>>> responses = List.of(
-                controller.engineFailure(new CoreException(CoreErrorCode.INSUFFICIENT_FUNDS, "증거금이 부족합니다")),
-                controller.engineFailure(new CompletionException(new IllegalStateException("내부 실패"))),
-                controller.unknownTr(new UnknownTrException("지원하지 않는 TR입니다")),
-                controller.badRequest(new LsRequestException("잘못된 요청입니다")));
+                advice.engineFailure(new CoreException(CoreErrorCode.INSUFFICIENT_FUNDS, "증거금이 부족합니다")),
+                advice.engineFailure(new CompletionException(new IllegalStateException("내부 실패"))),
+                advice.unknownTr(new UnknownTrException("지원하지 않는 TR입니다")),
+                advice.badRequest(new LsRequestException("잘못된 요청입니다")));
 
         assertThat(responses).allSatisfy(response ->
                 assertThat(response.getBody()).containsOnlyKeys("rsp_cd", "rsp_msg"));
