@@ -1,5 +1,7 @@
 package io.github.stockmock.adapter.ls;
 
+import org.springframework.stereotype.Component;
+
 import java.time.Duration;
 import java.util.UUID;
 
@@ -26,9 +28,10 @@ import java.util.UUID;
  *   <li>실제 키 인증, 암호화, 외부 네트워크 호출은 하지 않는다.</li>
  * </ul>
  *
- * <p>구현 완료 후에만 Spring Controller 어노테이션과 공식 URL을 추가한다.
- * JSON 필드명은 공식 LS fixture로 검증한다.</p>
+ * <p>HTTP 배선({@code POST /oauth2/token})은 {@link LsController}가 담당한다.
+ * JSON 필드명은 공식 LS fixture({@code fixtures/token-issue.json})로 검증했다.</p>
  */
+@Component
 public final class TokenController {
     public TokenResponse issue(TokenRequest request, Duration configuredTtl) {
         if (request == null) {

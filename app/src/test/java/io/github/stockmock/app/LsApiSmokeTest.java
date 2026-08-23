@@ -45,4 +45,22 @@ class LsApiSmokeTest {
                 .andExpect(jsonPath("$.t0424OutBlock1[0].expcode").value("005930"))
                 .andExpect(jsonPath("$.t0424OutBlock1[0].janqty").value(30));
     }
+
+    @Test
+    void tokenIssueEndpointReturnsBearerTokenAndRejectsMissingFields() throws Exception {
+        mockMvc.perform(post("/oauth2/token")
+                        .param("grant_type", "client_credentials")
+                        .param("appkey", "smoke-app-key")
+                        .param("appsecretkey", "smoke-app-secret"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.access_token").isNotEmpty())
+                .andExpect(jsonPath("$.token_type").value("Bearer"))
+                .andExpect(jsonPath("$.expires_in").value(86_400));
+
+        mockMvc.perform(post("/oauth2/token")
+                        .param("appkey", "smoke-app-key")
+                        .param("appsecretkey", "smoke-app-secret"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.rsp_cd").value("40000"));
+    }
 }
