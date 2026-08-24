@@ -5,6 +5,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -17,9 +18,9 @@ import java.util.concurrent.CompletionException;
  * <p>{@code @ExceptionHandler}를 Controller 안에 두면 그 Controller에만 적용된다.
  * ADAPTER-03의 토큰 endpoint처럼 Controller가 늘어나도 봉투가 하나로 유지되도록 분리했다.</p>
  *
- * <p>TODO(ADAPTER-04): 깨진 JSON, 405, 415, 존재하지 않는 URL처럼 Spring이 Controller보다
- * 먼저 처리하는 예외는 아직 이 봉투를 타지 않는다. 덮으려면
- * {@code ResponseEntityExceptionHandler}를 상속해야 하며 별도 작업으로 분리한다.</p>
+ * <p>깨진 JSON은 {@link HttpMessageNotReadableException}으로 분류해 LS 잘못된 요청 봉투로
+ * 바꾼다. 405, 415, 존재하지 않는 URL처럼 Controller 선택 전에 끝나는 나머지 실패는
+ * 별도 HTTP 계약 작업에서 다룬다.</p>
  */
 @RestControllerAdvice
 public final class LsErrorAdvice {
@@ -50,6 +51,20 @@ public final class LsErrorAdvice {
     @ExceptionHandler({LsRequestException.class, IllegalArgumentException.class})
     public ResponseEntity<Map<String, Object>> badRequest(RuntimeException exception) {
         return respond(LsErrorType.INVALID_REQUEST, exception);
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<Map<String, Object>> unreadableBody(HttpMessageNotReadableException exception) {
+        return respond(LsErrorType.INVALID_REQUEST, exception);
+    }
+
+    /**
+     * Handler 또는 Controller에서 직접 발생한 예상하지 못한 런타임 실패를 마지막으로 처리한다.
+     * 구체적인 예외는 위 handler들이 먼저 선택되고, 나머지만 목 서버 내부 오류로 닫힌다.
+     */
+    @ExceptionHandler(RuntimeException.class)
+    public ResponseEntity<Map<String, Object>> unexpectedFailure(RuntimeException exception) {
+        return respond(LsErrorType.INTERNAL_ERROR, exception);
     }
 
     /**

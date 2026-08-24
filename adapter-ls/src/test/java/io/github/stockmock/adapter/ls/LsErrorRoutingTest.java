@@ -65,6 +65,16 @@ class LsErrorRoutingTest {
     }
 
     @Test
+    void routesADirectUnexpectedRuntimeFailureToTheInternalErrorEnvelope() throws Exception {
+        mockMvcThrowing(new IllegalStateException("handler 내부 실패"))
+                .perform(post("/stock/order").contentType(MediaType.APPLICATION_JSON).content(BODY))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.rsp_cd").value("50000"))
+                .andExpect(jsonPath("$.rsp_msg").value("목 서버 내부 오류입니다"))
+                .andExpect(jsonPath("$.rsp_detail").doesNotExist());
+    }
+
+    @Test
     void routesAnUnknownTrToTheLsEnvelope() throws Exception {
         MockMvc mockMvc = MockMvcBuilders
                 .standaloneSetup(new LsController(new LsTrDispatcher(List.of())))
@@ -85,16 +95,13 @@ class LsErrorRoutingTest {
                 .andExpect(jsonPath("$.rsp_cd").value("40000"));
     }
 
-    /**
-     * TODO(ADAPTER-04): Spring이 Controller보다 먼저 처리하는 예외는 아직 LS 봉투를 타지 않는다.
-     * 이 테스트는 그 공백을 눈에 보이게 고정한다. {@code ResponseEntityExceptionHandler}를
-     * 상속해 덮으면 이 단언을 rsp_cd 검증으로 바꾼다.
-     */
     @Test
-    void frameworkLevelFailuresDoNotCarryTheLsEnvelopeYet() throws Exception {
+    void routesMalformedJsonToTheInvalidRequestEnvelope() throws Exception {
         mockMvcThrowing(new LsRequestException("사용되지 않음"))
                 .perform(post("/stock/order").contentType(MediaType.APPLICATION_JSON).content("{ 깨진 JSON"))
-                .andExpect(jsonPath("$.rsp_cd").doesNotExist());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.rsp_cd").value("40000"))
+                .andExpect(jsonPath("$.rsp_msg").value("요청 값이 올바르지 않습니다"));
     }
 
     private record ThrowingHandler(Supplier<RuntimeException> failure) implements TrHandler {
