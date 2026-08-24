@@ -131,10 +131,14 @@ ADAPTER-03, ADAPTER-04는 독립적으로 진행 가능
 
 ### SCENARIO-03 시간 문자열 파서
 
-- [ ] `500ms`, `1s`, `10s`, `24h`를 `Duration`으로 변환한다.
-- [ ] 단위가 없는 문자열을 거부한다.
-- [ ] 음수 시간을 거부한다.
-- [ ] 파싱 오류에 YAML 필드 경로를 포함한다.
+- [x] `500ms`, `1s`, `10s`, `24h`를 `Duration`으로 변환한다. `10m`도 지원한다.
+- [x] 단위가 없는 문자열을 거부한다.
+- [x] 음수 시간을 거부한다. 0, 소수, 공백 포함, 알 수 없는 단위, overflow도 거부한다.
+- [ ] 파싱 오류에 YAML 필드 경로를 포함한다. → `SCENARIO-02`로 옮긴다.
+
+`DurationParser`는 자기가 어느 필드에서 왔는지 모르므로 필드 경로를 만들 수 없다. 파서는
+잘못된 값만 알리고, `ScenarioValidator`가 이를 잡아 `ValidationIssue(field, message)`로
+경로를 붙인다. 마지막 항목은 `SCENARIO-02`에서 검증기가 파서를 호출할 때 충족된다.
 
 ### SCENARIO-04 FillPlanProvider 구현
 
