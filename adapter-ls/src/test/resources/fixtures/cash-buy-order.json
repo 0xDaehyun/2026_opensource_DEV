@@ -122,11 +122,8 @@
     }
   },
   "mvpSubset": {
-    "note": "M1 MVP는 아래 필드만 사용한다. OrdNo는 core가 문자열 주문번호를 만들기 때문에 타입이 아직 공식 스펙(number)과 다르다 — 팀 논의 후 결정할 TODO.",
+    "note": "M1 MVP는 아래 필드만 사용한다. adapter가 core 문자열 주문번호를 LS 숫자 주문번호로 변환한다.",
     "outBlock1Fields": ["RecCnt", "AcntNo", "IsuNo", "OrdQty", "OrdPrc", "BnsTpCode"],
-    "outBlock2Fields": ["RecCnt", "OrdNo", "OrdTime", "OrdMktCode", "OrdPtnCode"],
-    "knownGaps": {
-      "OrdNo": "공식 타입은 number, 현재 구현은 core 주문번호 문자열(예: ORD-000001)을 그대로 노출한다."
-    }
+    "outBlock2Fields": ["RecCnt", "OrdNo", "OrdTime", "OrdMktCode", "OrdPtnCode"]
   }
 }

@@ -101,9 +101,9 @@
       }
     }
   },
-  "openQuestions": {
-    "queryShape": "core의 EnginePort.query(OrderQuery)는 주문번호 1건 단건 조회만 지원한다. 실제 t0425는 종목코드 기준 목록 조회 + 페이지네이션이다. 단건 조회로 MVP를 유지할지, core에 목록 조회 기능을 새로 요청할지 결정 필요.",
-    "statusText": "실제 status는 '접수'/'체결' 같은 한글 텍스트로 보인다(전체 상태 값 목록은 미확인). 지금 구현은 core OrderState enum 이름(ACCEPTED 등)을 그대로 노출한다.",
-    "ordnoType": "ordno가 숫자(84)라 CSPAT00601에서 이미 발견한 core 문자열 주문번호 gap과 동일한 문제가 여기도 있다."
+  "implementationNotes": {
+    "queryShape": "adapter가 자신이 발급한 LS 주문번호 목록을 보관하고 core 단건 조회를 조합해 공식 목록 입력을 지원한다.",
+    "statusText": "접수는 공식 콘솔에서 확인했다. 일부체결·체결·취소·거부 한글값은 MVP 매핑이며 추가 fixture 확보 시 재검증한다.",
+    "ordnoType": "adapter가 core 문자열 주문번호를 LS 숫자 주문번호로 변환한다."
   }
 }

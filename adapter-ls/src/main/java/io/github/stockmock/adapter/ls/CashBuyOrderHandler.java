@@ -12,7 +12,6 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicLong;
 
 @Component
@@ -20,10 +19,12 @@ final class CashBuyOrderHandler implements TrHandler {
     private static final DateTimeFormatter ORDER_TIME = DateTimeFormatter.ofPattern("HHmmssSSS")
             .withZone(ZoneId.of("Asia/Seoul"));
     private final EnginePort engine;
+    private final LsOrderNumberRegistry orderNumbers;
     private final AtomicLong clientSequence = new AtomicLong();
 
-    CashBuyOrderHandler(EnginePort engine) {
+    CashBuyOrderHandler(EnginePort engine, LsOrderNumberRegistry orderNumbers) {
         this.engine = engine;
+        this.orderNumbers = orderNumbers;
     }
 
     @Override
@@ -46,15 +47,12 @@ final class CashBuyOrderHandler implements TrHandler {
         long price = requiredLong(inBlock, "OrdPrc");
         String clientOrderId = text(inBlock, "clientOrderId", "ls-" + clientSequence.incrementAndGet());
 
-        OrderResult result;
-        try {
-            result = engine.submit(new PlaceOrder(clientOrderId, new Symbol(symbol), Side.BUY, quantity, price)).join();
-        } catch (CompletionException exception) {
-            throw new LsRequestException(rootMessage(exception));
-        }
+        OrderResult result = engine.submit(
+                new PlaceOrder(clientOrderId, new Symbol(symbol), Side.BUY, quantity, price)).join();
         if (!result.accepted()) {
             return envelope("10001", result.reason(), Map.of());
         }
+        long lsOrderNumber = orderNumbers.register(result.orderId());
 
         Map<String, Object> outBlock1 = new LinkedHashMap<>();
         outBlock1.put("RecCnt", 1);
@@ -66,10 +64,7 @@ final class CashBuyOrderHandler implements TrHandler {
 
         Map<String, Object> outBlock2 = new LinkedHashMap<>();
         outBlock2.put("RecCnt", 1);
-        // TODO(ADAPTER-05): 공식 응답은 OrdNo가 숫자(예: 32004)지만, core 주문번호는 "ORD-000001" 형태의
-        // 문자열이다. 지금은 core 형식을 그대로 노출한다 — LS 숫자 주문번호로 변환하는 매핑 계층이
-        // 필요한지는 OrderStatusHandler/CancelOrderHandler의 입력 형식과 함께 팀 논의가 필요하다.
-        outBlock2.put("OrdNo", result.orderId());
+        outBlock2.put("OrdNo", lsOrderNumber);
         outBlock2.put("OrdTime", ORDER_TIME.format(java.time.Instant.EPOCH));
         outBlock2.put("OrdMktCode", "10");
         outBlock2.put("OrdPtnCode", "00");
@@ -123,11 +118,4 @@ final class CashBuyOrderHandler implements TrHandler {
         return value == null || value.isNull() ? fallback : value.asText();
     }
 
-    private String rootMessage(Throwable failure) {
-        Throwable root = failure;
-        while (root.getCause() != null) {
-            root = root.getCause();
-        }
-        return root.getMessage();
-    }
 }

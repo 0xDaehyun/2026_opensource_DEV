@@ -26,60 +26,68 @@ class OrderStatusHandlerTest {
     @Test
     void queriesAnAcceptedOrder() throws Exception {
         try (SimulationEngine engine = attachedEngine(0.3)) {
-            OrderStatusHandler handler = new OrderStatusHandler(engine);
+            LsOrderNumberRegistry orderNumbers = new LsOrderNumberRegistry();
+            OrderStatusHandler handler = new OrderStatusHandler(engine, orderNumbers);
             OrderResult accepted = place(engine);
+            long lsOrderNumber = orderNumbers.register(accepted.orderId());
 
-            Map<String, Object> response = handler.handle(request(accepted.orderId()));
+            Map<String, Object> response = handler.handle(request());
 
             assertThat(response).containsEntry("rsp_cd", "00000");
-            assertRow(response, accepted.orderId(), "ACCEPTED", 100, 0, 100);
+            assertRow(response, lsOrderNumber, "접수", 100, 0, 100);
         }
     }
 
     @Test
     void queriesAPartiallyFilledOrder() throws Exception {
         try (SimulationEngine engine = headlessEngine(0.3)) {
-            OrderStatusHandler handler = new OrderStatusHandler(engine);
+            LsOrderNumberRegistry orderNumbers = new LsOrderNumberRegistry();
+            OrderStatusHandler handler = new OrderStatusHandler(engine, orderNumbers);
             OrderResult accepted = place(engine);
+            long lsOrderNumber = orderNumbers.register(accepted.orderId());
             engine.awaitIdle().join();
 
-            Map<String, Object> response = handler.handle(request(accepted.orderId()));
+            Map<String, Object> response = handler.handle(request());
 
-            assertRow(response, accepted.orderId(), "PARTIALLY_FILLED", 100, 30, 70);
+            assertRow(response, lsOrderNumber, "일부체결", 100, 30, 70);
         }
     }
 
     @Test
     void queriesAFilledOrder() throws Exception {
         try (SimulationEngine engine = headlessEngine(1.0)) {
-            OrderStatusHandler handler = new OrderStatusHandler(engine);
+            LsOrderNumberRegistry orderNumbers = new LsOrderNumberRegistry();
+            OrderStatusHandler handler = new OrderStatusHandler(engine, orderNumbers);
             OrderResult accepted = place(engine);
+            long lsOrderNumber = orderNumbers.register(accepted.orderId());
             engine.awaitIdle().join();
 
-            Map<String, Object> response = handler.handle(request(accepted.orderId()));
+            Map<String, Object> response = handler.handle(request());
 
-            assertRow(response, accepted.orderId(), "FILLED", 100, 100, 0);
+            assertRow(response, lsOrderNumber, "체결", 100, 100, 0);
         }
     }
 
     @Test
     void queriesACancelledOrder() throws Exception {
         try (SimulationEngine engine = attachedEngine(0.3)) {
-            OrderStatusHandler handler = new OrderStatusHandler(engine);
+            LsOrderNumberRegistry orderNumbers = new LsOrderNumberRegistry();
+            OrderStatusHandler handler = new OrderStatusHandler(engine, orderNumbers);
             OrderResult accepted = place(engine);
+            long lsOrderNumber = orderNumbers.register(accepted.orderId());
             engine.cancel(new CancelOrder("CANCEL-1", accepted.orderId(), 0)).join();
 
-            Map<String, Object> response = handler.handle(request(accepted.orderId()));
+            Map<String, Object> response = handler.handle(request());
 
-            assertRow(response, accepted.orderId(), "CANCELLED", 100, 0, 100);
+            assertRow(response, lsOrderNumber, "취소", 100, 0, 100);
         }
     }
 
     @Test
-    void rejectsAMissingOrderNumber() throws Exception {
+    void rejectsAnInvalidExecutionFilter() throws Exception {
         try (SimulationEngine engine = attachedEngine(0.3)) {
-            OrderStatusHandler handler = new OrderStatusHandler(engine);
-            JsonNode inBlock = objectMapper.readTree("{}");
+            OrderStatusHandler handler = new OrderStatusHandler(engine, new LsOrderNumberRegistry());
+            JsonNode inBlock = objectMapper.readTree("{\"chegb\": \"9\"}");
 
             assertThatThrownBy(() -> handler.handle(inBlock))
                     .isInstanceOf(LsRequestException.class);
@@ -87,13 +95,14 @@ class OrderStatusHandlerTest {
     }
 
     @Test
-    void returnsAnOrderNotFoundEnvelopeForAnUnknownOrder() throws Exception {
+    void returnsAnEmptyOfficialListWhenNoOrdersExist() throws Exception {
         try (SimulationEngine engine = attachedEngine(0.3)) {
-            OrderStatusHandler handler = new OrderStatusHandler(engine);
+            OrderStatusHandler handler = new OrderStatusHandler(engine, new LsOrderNumberRegistry());
 
-            Map<String, Object> response = handler.handle(request("ORD-999999"));
+            Map<String, Object> response = handler.handle(request());
 
-            assertThat(response).containsEntry("rsp_cd", "40401");
+            assertThat(response).containsEntry("rsp_cd", "00000");
+            assertThat((List<?>) response.get("t0425OutBlock1")).isEmpty();
         }
     }
 
@@ -101,12 +110,14 @@ class OrderStatusHandlerTest {
         return engine.submit(new PlaceOrder("CLIENT-1", new Symbol("005930"), Side.BUY, 100, 70_000)).join();
     }
 
-    private JsonNode request(String orderId) throws Exception {
-        return objectMapper.readTree("{\"OrdNo\": \"" + orderId + "\"}");
+    private JsonNode request() throws Exception {
+        return objectMapper.readTree("""
+                {"expcode":"005930","chegb":"0","medosu":"0","sortgb":"2","cts_ordno":" "}
+                """);
     }
 
     @SuppressWarnings("unchecked")
-    private void assertRow(Map<String, Object> response, String orderId, String state,
+    private void assertRow(Map<String, Object> response, long orderId, String state,
             long qty, long filled, long remaining) {
         List<Map<String, Object>> rows = (List<Map<String, Object>>) response.get("t0425OutBlock1");
         assertThat(rows).hasSize(1);

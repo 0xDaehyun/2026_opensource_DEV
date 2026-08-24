@@ -27,22 +27,17 @@ import static org.assertj.core.api.Assertions.assertThat;
  *   <li>토큰 발급(oauth2/token): {@code fixtures/token-issue.json} 확보, 검증 완료.</li>
  *   <li>잔고 조회(t0424): {@code fixtures/balance-query.json} 확보, 검증 완료
  *       (MVP는 공식 필드 중 일부만 사용하므로 부분집합 비교).</li>
- *   <li>현물 매수(CSPAT00601): {@code fixtures/cash-buy-order.json} 확보, 검증 완료
- *       (OrdNo는 공식 타입이 number인데 core 주문번호가 문자열이라 알려진 gap으로 남겨둠).</li>
+ *   <li>현물 매수(CSPAT00601): {@code fixtures/cash-buy-order.json} 확보, 검증 완료.</li>
  *   <li>주문 조회(t0425): {@code fixtures/order-status-query.json} 확보, 검증 완료.
- *       실제 t0425는 종목코드 기준 목록 조회+페이지네이션이지만, core가 단건 조회만 지원해서
- *       MVP는 의도적으로 주문번호 1건 조회로 단순화했다(팀 확인 완료). ordno 타입과 status
- *       한글 텍스트 전체 목록은 여전히 알려진 gap.</li>
+ *       공식 종목코드 기반 목록 입력과 숫자 주문번호를 사용한다.</li>
  *   <li>취소(CSPAT00801): {@code fixtures/cancel-order.json} 확보, 검증 완료.
  *       공식 응답에는 취소 수량·최종 상태 필드가 없어(취소는 새 접수번호를 매기는 별개 이벤트로
- *       취급) 그 정보는 t0425로 확인해야 한다는 걸 반영해 응답에서 뺐다. OrdNo/PrntOrdNo 타입과
- *       "새 취소 접수번호 대 원주문번호 구분"은 알려진 gap.</li>
+ *       취급) 그 정보는 t0425로 확인해야 한다는 걸 반영해 응답에서 뺐다.</li>
  * </ul>
  *
  * <h2>다섯 API 완료</h2>
  * 토큰 발급, 잔고 조회, 매수, 주문 조회, 취소 다섯 API 모두 공식 fixture를 확보하고 구조·타입
- * 계약 테스트를 통과했다(ADAPTER-05 완료). 남은 알려진 gap은 각 fixture의 {@code knownGaps}/
- * {@code openQuestions}와 이 클래스의 타입 제외(exempt) 필드에 기록돼 있다.
+ * 계약 테스트를 통과했다(ADAPTER-05 완료).
  */
 class LsFixtureContractTest {
     private static final Instant START = Instant.parse("2026-01-02T00:00:00Z");
@@ -100,7 +95,7 @@ class LsFixtureContractTest {
         JsonNode officialOutBlock2Fields = fixture.path("response").path("outBlock2Fields");
 
         try (SimulationEngine engine = headlessEngine()) {
-            CashBuyOrderHandler handler = new CashBuyOrderHandler(engine);
+            CashBuyOrderHandler handler = new CashBuyOrderHandler(engine, new LsOrderNumberRegistry());
             JsonNode inBlock = objectMapper.readTree("""
                     {"IsuNo": "A005930", "OrdQty": 100, "OrdPrc": 70000, "BnsTpCode": "2"}
                     """);
@@ -121,9 +116,8 @@ class LsFixtureContractTest {
 
             assertFieldsAreOfficialSubset(officialOutBlock1Fields, actual.path("CSPAT00601OutBlock1"),
                     Set.of("RecCnt", "AcntNo", "IsuNo", "OrdQty", "OrdPrc", "BnsTpCode"), Set.of());
-            // OrdNo는 알려진 타입 gap(공식 number, 현재 core 문자열)이라 타입 검사에서 제외한다.
             assertFieldsAreOfficialSubset(officialOutBlock2Fields, actual.path("CSPAT00601OutBlock2"),
-                    Set.of("RecCnt", "OrdNo", "OrdTime", "OrdMktCode", "OrdPtnCode"), Set.of("OrdNo"));
+                    Set.of("RecCnt", "OrdNo", "OrdTime", "OrdMktCode", "OrdPtnCode"), Set.of());
         }
     }
 
@@ -134,10 +128,12 @@ class LsFixtureContractTest {
         JsonNode officialOutBlockFields = fixture.path("response").path("outBlockFields");
 
         try (SimulationEngine engine = attachedEngine()) {
-            OrderStatusHandler handler = new OrderStatusHandler(engine);
+            LsOrderNumberRegistry orderNumbers = new LsOrderNumberRegistry();
+            OrderStatusHandler handler = new OrderStatusHandler(engine, orderNumbers);
             var accepted = engine.submit(
                     new PlaceOrder("CLIENT-1", new Symbol("005930"), Side.BUY, 100, 70_000)).join();
-            JsonNode inBlock = objectMapper.readTree("{\"OrdNo\": \"" + accepted.orderId() + "\"}");
+            orderNumbers.register(accepted.orderId());
+            JsonNode inBlock = fixture.path("request").path("sample");
 
             JsonNode actual = objectMapper.valueToTree(handler.handle(inBlock));
 
@@ -148,12 +144,14 @@ class LsFixtureContractTest {
                     .as("t0425OutBlock은 배열이 아니라 공식 응답처럼 합계 object여야 한다")
                     .isTrue();
 
-            // ordno는 알려진 타입 gap(공식 number, 현재 core 문자열)이라 타입 검사에서 제외한다.
             assertFieldsAreOfficialSubset(officialOutBlock1Fields, actual.path("t0425OutBlock1").get(0),
-                    Set.of("ordno", "expcode", "medosu", "qty", "cheqty", "ordrem", "price", "status"),
-                    Set.of("ordno"));
+                    Set.of("orgordno", "ordrem", "cfmqty", "ordgb", "cheqty", "orggb", "ordno",
+                            "loandt", "price", "sysprocseq", "singb", "qty", "hogagb", "expcode",
+                            "medosu", "cheprice", "ordtime", "ordermtd", "price1", "status"),
+                    Set.of());
             assertFieldsAreOfficialSubset(officialOutBlockFields, actual.path("t0425OutBlock"),
-                    Set.of("tqty", "tcheqty", "tordrem"), Set.of());
+                    Set.of("tcheqty", "tamt", "tqty", "cmss", "tmsamt", "tax", "tmdamt", "cts_ordno",
+                            "tordrem"), Set.of());
         }
     }
 
@@ -164,11 +162,13 @@ class LsFixtureContractTest {
         JsonNode officialOutBlock2Fields = fixture.path("response").path("outBlock2Fields");
 
         try (SimulationEngine engine = attachedEngine()) {
-            CancelOrderHandler handler = new CancelOrderHandler(engine);
+            LsOrderNumberRegistry orderNumbers = new LsOrderNumberRegistry();
+            CancelOrderHandler handler = new CancelOrderHandler(engine, orderNumbers);
             var accepted = engine.submit(
                     new PlaceOrder("CLIENT-1", new Symbol("005930"), Side.BUY, 100, 70_000)).join();
+            long lsOrderNumber = orderNumbers.register(accepted.orderId());
             JsonNode inBlock = objectMapper.readTree(
-                    "{\"OrgOrdNo\": \"" + accepted.orderId() + "\", \"IsuNo\": \"A005930\", \"OrdQty\": 100}");
+                    "{\"OrgOrdNo\": " + lsOrderNumber + ", \"IsuNo\": \"A005930\", \"OrdQty\": 100}");
 
             JsonNode actual = objectMapper.valueToTree(handler.handle(inBlock));
 
@@ -184,12 +184,11 @@ class LsFixtureContractTest {
                     .as("CSPAT00801OutBlock2는 배열이 아니라 공식 응답처럼 object여야 한다")
                     .isTrue();
 
-            // OrgOrdNo/OrdNo/PrntOrdNo는 알려진 타입 gap(공식 number, 현재 core 문자열)이라 타입 검사에서 제외한다.
             assertFieldsAreOfficialSubset(officialOutBlock1Fields, actual.path("CSPAT00801OutBlock1"),
-                    Set.of("RecCnt", "AcntNo", "OrgOrdNo", "IsuNo", "OrdQty"), Set.of("OrgOrdNo"));
+                    Set.of("RecCnt", "AcntNo", "OrgOrdNo", "IsuNo", "OrdQty"), Set.of());
             assertFieldsAreOfficialSubset(officialOutBlock2Fields, actual.path("CSPAT00801OutBlock2"),
                     Set.of("RecCnt", "OrdNo", "PrntOrdNo", "OrdTime", "OrdMktCode", "OrdPtnCode"),
-                    Set.of("OrdNo", "PrntOrdNo"));
+                    Set.of());
         }
     }
 
