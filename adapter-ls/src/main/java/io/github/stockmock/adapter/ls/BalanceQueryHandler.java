@@ -29,23 +29,23 @@ final class BalanceQueryHandler implements TrHandler {
         AccountView account = engine.query(new AccountQuery()).join();
 
         Map<String, Object> summary = new LinkedHashMap<>();
-        summary.put("sunamt", Long.toString(account.cash()));
-        summary.put("mamt", Long.toString(account.lockedCash()));
-        summary.put("tappamt", Long.toString(account.cash() + account.lockedCash()));
+        summary.put("sunamt", account.cash());
+        summary.put("mamt", account.lockedCash());
+        summary.put("tappamt", account.cash() + account.lockedCash());
 
         List<Map<String, Object>> positions = new ArrayList<>();
         account.positions().forEach((symbol, position) -> {
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("expcode", symbol);
-            row.put("janqty", Long.toString(position.quantity()));
-            row.put("mdposqt", Long.toString(position.quantity()));
+            row.put("janqty", position.quantity());
+            row.put("mdposqt", position.quantity());
             positions.add(row);
         });
 
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("rsp_cd", "00000");
         response.put("rsp_msg", "조회완료");
-        response.put("t0424OutBlock", List.of(summary));
+        response.put("t0424OutBlock", summary);
         response.put("t0424OutBlock1", positions);
         return response;
     }
