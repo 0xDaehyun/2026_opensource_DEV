@@ -1,0 +1,11 @@
+scenario: ratio_out_of_range
+
+account:
+  cash: 10000000
+
+execution:
+  fills:
+    - after: 1s
+      ratio: 1.5
+
+seed: 42

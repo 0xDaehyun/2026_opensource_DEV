@@ -43,11 +43,11 @@ ADAPTER-03, ADAPTER-04는 독립적으로 진행 가능
 
 ### CORE-02 FillPlanProvider 계약
 
-- [ ] `FillPlanProvider` 인터페이스를 core에 추가한다.
-- [ ] `SimulationEngine` 생성자로 주입한다.
-- [ ] 기존 하드코딩된 `fillRatio`, `fillDelay`를 제거한다.
-- [ ] 주문 접수 시 `FillPlan`을 한 번만 생성한다.
-- [ ] 고정 Provider를 사용한 엔진 테스트를 작성한다.
+- [x] `FillPlanProvider` 인터페이스를 core에 추가한다.
+- [x] `SimulationEngine` 생성자로 주입한다.
+- [x] 기존 하드코딩된 `fillRatio`, `fillDelay`를 제거한다.
+- [x] 주문 접수 시 `FillPlan`을 한 번만 생성한다.
+- [x] 고정 Provider를 사용한 엔진 테스트를 작성한다.
 
 ### CORE-03 취소와 계좌 불변식 보강
 
@@ -64,43 +64,55 @@ ADAPTER-03, ADAPTER-04는 독립적으로 진행 가능
 
 선행 조건: `CORE-01`
 
-- [ ] LS 공식 콘솔에서 대상 TR 요청·응답을 확인한다.
-- [ ] 민감 정보를 제거한 fixture를 저장한다.
-- [ ] `OrderStatusHandler`를 구현한다.
-- [ ] `EnginePort.query(OrderQuery)`만 사용한다.
-- [ ] 접수·부분체결·체결·취소 응답 테스트를 작성한다.
-- [ ] 존재하지 않는 주문의 LS 오류 응답을 작성한다.
+- [x] LS 공식 콘솔에서 대상 TR 요청·응답을 확인한다.
+- [x] 민감 정보를 제거한 fixture를 저장한다.
+- [x] `OrderStatusHandler`를 구현한다.
+- [x] `EnginePort.query(OrderQuery)`만 사용한다.
+- [x] 접수·부분체결·체결·취소 응답 테스트를 작성한다.
+- [x] 공식 목록 입력과 주문이 없는 빈 목록 응답을 작성한다.
+
+core의 단건 조회 계약은 유지하고, adapter가 발급한 숫자 LS 주문번호 목록을 순회해
+공식 t0425 목록 응답을 만든다.
 
 ### ADAPTER-02 미체결 전량 취소
 
 선행 조건: `CORE-01`
 
-- [ ] LS 공식 콘솔에서 취소 TR 요청·응답을 확인한다.
-- [ ] `CancelOrderHandler`를 구현한다.
-- [ ] `EnginePort.cancel(CancelOrder)`만 사용한다.
-- [ ] 부분체결 30주 이후 미체결 70주 취소 응답을 테스트한다.
-- [ ] 이미 체결·취소된 주문의 거부 응답을 테스트한다.
+- [x] LS 공식 콘솔에서 취소 TR 요청·응답을 확인한다.
+- [x] `CancelOrderHandler`를 구현한다.
+- [x] `EnginePort.cancel(CancelOrder)`만 사용한다.
+- [x] 부분체결 30주 이후 미체결 70주 취소 응답을 테스트한다.
+- [x] 이미 체결·취소된 주문의 거부 응답을 테스트한다.
 
 ### ADAPTER-03 Mock 토큰 발급
 
-- [ ] 토큰 발급 URL과 응답 fixture를 확인한다.
-- [ ] 실제 보안 검증 없이 mock 토큰을 발급한다.
-- [ ] 외부에서 TTL 값을 전달받을 수 있게 한다.
-- [ ] 정상 발급과 잘못된 본문 테스트를 작성한다.
+- [x] 토큰 발급 URL과 응답 fixture를 확인한다.
+- [x] 실제 보안 검증 없이 mock 토큰을 발급한다.
+- [x] 외부에서 TTL 값을 전달받을 수 있게 한다.
+- [x] 정상 발급과 잘못된 본문 테스트를 작성한다.
 
 ### ADAPTER-04 공통 LS 오류 봉투
 
-- [ ] `INVALID_REQUEST`를 LS 오류로 변환한다.
-- [ ] `ORDER_NOT_FOUND`를 LS 오류로 변환한다.
-- [ ] `INSUFFICIENT_FUNDS`를 LS 오류로 변환한다.
-- [ ] `ILLEGAL_ORDER_STATE`를 LS 오류로 변환한다.
-- [ ] core에 `rsp_cd`, TR, InBlock 용어를 추가하지 않는다.
+- [x] `INVALID_REQUEST`를 LS 오류로 변환한다.
+- [x] `ORDER_NOT_FOUND`를 LS 오류로 변환한다.
+- [x] `INSUFFICIENT_FUNDS`를 LS 오류로 변환한다.
+- [x] `ILLEGAL_ORDER_STATE`를 LS 오류로 변환한다.
+- [x] core에 `rsp_cd`, TR, InBlock 용어를 추가하지 않는다.
+
+`rsp_cd` 값은 LS 공식 콘솔 확인 전까지 임시값이다. 409와 429는 AGENTS.md 6절의 관측
+목록에 없는 추정값이며 `ADAPTER-05` 확인 대상이다.
+
+core가 아직 `CoreException`을 던지지 않는 경로는 `LsErrorMapper.classify()`가 예외 타입으로
+임시 판정한다. 증거금 부족은 예외가 아니라 `OrderResult(REJECTED)`로 오므로 이 봉투에
+도달하지 않고, 취소 실패는 도달하되 코드가 아닌 타입으로 판정된다. `CORE-03`에서 core가
+`CoreException(INVALID_REQUEST / ORDER_NOT_FOUND / ILLEGAL_ORDER_STATE)`을 던지면
+`classify()`의 타입 판정 갈래를 제거한다.
 
 ### ADAPTER-05 계약 fixture 테스트
 
-- [ ] 다섯 API fixture의 필드 이름과 JSON 구조를 비교한다.
-- [ ] 실제 값이 아니라 구조와 타입을 검증한다.
-- [ ] 계좌번호와 토큰 등 민감 정보가 없는지 확인한다.
+- [x] 다섯 API fixture의 필드 이름과 JSON 구조를 비교한다.
+- [x] 실제 값이 아니라 구조와 타입을 검증한다.
+- [x] 계좌번호와 토큰 등 민감 정보가 없는지 확인한다.
 
 완료 조건:
 
@@ -114,10 +126,22 @@ ADAPTER-03, ADAPTER-04는 독립적으로 진행 가능
 
 ### SCENARIO-01 YAML record 검토
 
-- [ ] `ScenarioSpec`과 예제 YAML의 필드가 일치하는지 확인한다.
-- [ ] 모든 필드가 필요한지 팀장에게 확인한다.
-- [ ] 알 수 없는 필드가 거부되는 테스트를 유지한다.
-- [ ] 실행 훅, 클래스 이름, URL 같은 실행 능력을 YAML에 추가하지 않는다.
+- [x] `ScenarioSpec`과 예제 YAML의 필드가 일치하는지 확인한다.
+- [ ] 모든 필드가 필요한지 팀장에게 확인한다. → 아래 질문 3개 대기
+- [x] 알 수 없는 필드가 거부되는 테스트를 유지한다.
+- [x] 실행 훅, 클래스 이름, URL 같은 실행 능력을 YAML에 추가하지 않는다.
+
+`ScenarioCatalogTest`가 `scenarios/` 카탈로그 전체를 읽어 spec 일치를 검증한다. 이전에는
+test resources fixture만 읽어서 카탈로그가 어긋나도 아무 테스트가 깨지지 않았다.
+
+팀장 확인이 필요한 항목:
+
+1. `seed`를 어떤 코드도 읽지 않는다. contracts.md가 "체결 시점에 난수를 사용하지 않는다"고
+   정한 이상 결정론에 seed가 필요한지 불분명하다. 유지할지 결정이 필요하다.
+2. `FillSpec.quantity`를 어떤 카탈로그 YAML도 쓰지 않는다. MVP를 `ratio`만으로 갈지
+   확인이 필요하다. 유지한다면 `SCENARIO-07`에서 예제를 추가해야 한다.
+3. `constraints`(`rate_limit`, `token_ttl`)를 쓰는 카탈로그 예제가 없다. `SCENARIO-05`
+   정책을 구현해도 사용자가 참고할 YAML이 없으므로 `SCENARIO-07`에서 추가해야 한다.
 
 ### SCENARIO-02 의미 검증기 완성
 
@@ -175,24 +199,48 @@ ADAPTER-03, ADAPTER-04는 독립적으로 진행 가능
 
 ### SCENARIO-05 운영 제약 정책
 
-- [ ] `RateLimitPolicy`를 구현한다.
-- [ ] `TokenExpiryPolicy`를 구현한다.
-- [ ] 시스템 시각 대신 전달받은 가상 시각을 사용한다.
-- [ ] 정책 클래스는 HTTP 응답이나 LS JSON을 생성하지 않는다.
+- [x] `RateLimitPolicy`를 구현한다.
+- [x] `TokenExpiryPolicy`를 구현한다.
+- [x] 시스템 시각 대신 전달받은 가상 시각을 사용한다.
+- [x] 정책 클래스는 HTTP 응답이나 LS JSON을 생성하지 않는다.
+
+rate limit 구간은 슬라이딩 윈도가 아니라 epoch-second 고정 구간이다. 평가와 카운트 증가를
+`ConcurrentHashMap.compute`로 원자적으로 처리해 동시 요청에서 한도를 넘기지 않는다.
+토큰 만료 경계는 만료 쪽이다. 정확히 `issuedAt + ttl`이면 이미 EXPIRED다.
 
 ### SCENARIO-06 응답 지연 정책
 
-- [ ] `PLACE_ORDER`와 `CANCEL` operation을 구분한다.
-- [ ] `BEFORE_COMMIT`, `AFTER_COMMIT`을 구분한다.
-- [ ] 지연 시간을 반환하는 정책만 구현한다.
-- [ ] 정책 클래스에서 `Thread.sleep()`을 호출하지 않는다.
+- [x] `PLACE_ORDER`와 `CANCEL` operation을 구분한다.
+- [x] `BEFORE_COMMIT`, `AFTER_COMMIT`을 구분한다.
+- [x] 지연 시간을 반환하는 정책만 구현한다.
+- [x] 정책 클래스에서 `Thread.sleep()`을 호출하지 않는다.
+
+operation과 timing이 모두 일치할 때만 지연을 반환한다. 실제 지연 적용은 조립 계층의
+책임이므로 정책은 즉시 반환한다.
+
+스텁 javadoc은 "null 입력은 IAE"였으나 `configuredRule`이 null이면 `Optional.empty()`를
+반환하도록 바꿨다. faults 미설정은 오류가 아니라 "규칙 없음"이기 때문이다. operation과
+timing의 null은 그대로 거부한다.
 
 ### SCENARIO-07 카탈로그
 
-- [ ] `normal-fill.yml` 기대 결과를 문서화한다.
-- [ ] `partial-fill.yml` 기대 결과를 문서화한다.
-- [ ] `response-delay-after-commit.yml` 기대 결과를 문서화한다.
-- [ ] 잘못된 YAML 예시와 검증 테스트를 추가한다.
+- [x] `normal-fill.yml` 기대 결과를 문서화한다.
+- [x] `partial-fill.yml` 기대 결과를 문서화한다.
+- [x] `response-delay-after-commit.yml` 기대 결과를 문서화한다.
+- [x] 잘못된 YAML 예시와 검증 테스트를 추가한다.
+
+`scenarios/README.md`에 세 시나리오의 시점별 현금·잠긴 현금·보유 수량·주문 상태와
+"봇이 검증할 것"을 적었다. 잘못된 예시는 실행용이 아니므로 카탈로그가 아니라
+`scenario/src/test/resources/invalid/`에 두고 `InvalidScenarioCatalogTest`가 각 파일의
+보고 필드를 고정한다. 카탈로그에 두면 `SCENARIO-01`의 `ScenarioCatalogTest`가 이들을
+유효한 시나리오로 검사해 깨진다.
+
+`constraints` 예제는 `bad-constraints.yml`에만 있다. 정상 동작하는 `rate_limit`·`token_ttl`
+카탈로그 예제는 `APP-01`이 시나리오를 서버에 연결한 뒤 추가하는 것이 낫다.
+
+팀장 확인 필요: AGENTS.md 6절은 MVP faults를 "주문 거부, `AFTER_COMMIT` 응답 지연" 2종으로
+정의하는데 `ScenarioSpec`에는 응답 지연만 있다. 주문 거부를 범위에서 뺄지 필드를 추가할지
+결정이 필요하다. `SCENARIO-01`의 "모든 필드가 필요한지 팀장에게 확인한다"와 함께 정리한다.
 
 완료 조건:
 

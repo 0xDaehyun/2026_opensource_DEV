@@ -1,6 +1,7 @@
 package io.github.stockmock.scenario.execution;
 
 import io.github.stockmock.core.fill.FillPlan;
+import io.github.stockmock.core.fill.FillPlanProvider;
 import io.github.stockmock.core.fill.FillStep;
 import io.github.stockmock.scenario.spec.ScenarioSpec.ExecutionSpec;
 import io.github.stockmock.scenario.spec.ScenarioSpec.FillSpec;
@@ -164,6 +165,22 @@ class ScenarioFillPlanProviderTest {
     void rejectsAFillUsingBothRatioAndQuantityAtConstruction() {
         assertThatThrownBy(() -> provider(new FillSpec("1s", 0.3, 30L)))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void rejectsANaNRatioAtConstruction() {
+        assertThatThrownBy(() -> provider(new FillSpec("1s", Double.NaN, null)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("체결 비율");
+    }
+
+    @Test
+    void implementsTheCoreFillPlanProviderPort() {
+        FillPlanProvider provider = provider(new FillSpec("1s", 0.3, null));
+
+        assertThat(provider.create(100).steps())
+                .singleElement()
+                .satisfies(step -> assertThat(step.quantity()).isEqualTo(30));
     }
 
     /** after 파싱은 주문마다가 아니라 생성 시 한 번만 한다. */
