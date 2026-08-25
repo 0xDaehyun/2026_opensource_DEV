@@ -1,6 +1,7 @@
 package io.github.stockmock.scenario.loader;
 
 import io.github.stockmock.scenario.spec.ScenarioSpec;
+import io.github.stockmock.scenario.validation.ScenarioValidator;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -26,6 +27,7 @@ class ScenarioCatalogTest {
     private static final Path CATALOG = Path.of("..", "scenarios");
 
     private final ScenarioLoader loader = new ScenarioLoader();
+    private final ScenarioValidator validator = new ScenarioValidator();
 
     static Stream<Path> catalogFiles() throws IOException {
         try (var paths = Files.walk(CATALOG)) {
@@ -43,6 +45,9 @@ class ScenarioCatalogTest {
     void everyCatalogScenarioMatchesTheSpec(Path path) {
         ScenarioSpec spec = loader.load(path);
 
+        assertThat(validator.validate(spec))
+                .as("%s 시나리오 의미 검증", path)
+                .isEmpty();
         assertThat(spec.scenario()).as("scenario 이름").isNotBlank();
         assertThat(spec.account()).as("account").isNotNull();
         assertThat(spec.account().cash()).as("account.cash").isNotNull().isPositive();
