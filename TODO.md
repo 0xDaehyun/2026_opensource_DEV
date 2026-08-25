@@ -180,10 +180,10 @@ test resources fixture만 읽어서 카탈로그가 어긋나도 아무 테스�
 - [x] 100주와 0.3에서 30주가 생성되는지 테스트한다.
 - [x] 같은 시나리오와 seed에서 같은 계획이 생성되는지 테스트한다.
 
-`origin/feat/core-02-fill-plan-provider`의 계약은 `FillPlan create(long orderQuantity)`
-하나다. core는 시나리오 타입을 몰라야 하므로 `ExecutionSpec`을 인자로 받을 수 없다.
-그래서 설정을 생성자로 올리고 `create(long)`만 남겼다. `CORE-02`가 머지되면
-`implements FillPlanProvider`만 추가하면 된다.
+`FillPlanProvider`의 계약은 `FillPlan create(long orderQuantity)` 하나다. core는
+시나리오 타입을 몰라야 하므로 `ExecutionSpec`을 인자로 받을 수 없다. 그래서 설정을
+생성자로 올리고 `create(long)`만 남겼으며, `ScenarioFillPlanProvider`가 이 포트를
+구현한다.
 
 `after` 파싱은 생성 시 한 번만 한다. `create`는 DES 엔진 스레드에서 주문마다 호출되므로
 거기서 정규식을 돌리지 않는다.
@@ -237,6 +237,17 @@ timing의 null은 그대로 거부한다.
 팀장 확인 필요: AGENTS.md 6절은 MVP faults를 "주문 거부, `AFTER_COMMIT` 응답 지연" 2종으로
 정의하는데 `ScenarioSpec`에는 응답 지연만 있다. 주문 거부를 범위에서 뺄지 필드를 추가할지
 결정이 필요하다. `SCENARIO-01`의 "모든 필드가 필요한지 팀장에게 확인한다"와 함께 정리한다.
+
+### SCENARIO-08 정책 입력 변환
+
+- [x] 검증된 `ScenarioSpec`을 `ScenarioSettings`로 변환한다.
+- [x] 시간 문자열을 `Duration`으로 변환한다.
+- [x] operation과 timing 문자열을 정책 enum으로 변환한다.
+- [x] 초기 현금, rate limit, token TTL, 응답 지연, 체결 계획 Provider를 노출한다.
+
+`ScenarioSettings`가 YAML 문자열을 정책 입력 타입으로 바꾼다. 이 변환이 없으면 `APP-01`이
+`Operation.valueOf`와 `DurationParser`를 직접 불러야 하고, contracts.md의 "app은 업무
+규칙을 갖지 않는다"에 어긋난다.
 
 완료 조건:
 
