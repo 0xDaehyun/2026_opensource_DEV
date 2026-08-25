@@ -112,9 +112,11 @@ public final class ScenarioValidator {
                     hasRatio ? "ratio와 quantity는 동시에 쓸 수 없습니다"
                              : "ratio 또는 quantity 중 하나가 필요합니다"));
         }
-        if (hasRatio && (fill.ratio() <= 0 || fill.ratio() > 1)) {
+        if (hasRatio && (!Double.isFinite(fill.ratio())
+                || fill.ratio() <= 0
+                || fill.ratio() > 1)) {
             issues.add(new ValidationIssue(path + ".ratio",
-                    "체결 비율은 0 초과 1 이하여야 합니다: " + fill.ratio()));
+                    "체결 비율은 유한한 숫자이며 0 초과 1 이하여야 합니다: " + fill.ratio()));
         }
         if (hasQuantity && fill.quantity() <= 0) {
             issues.add(new ValidationIssue(path + ".quantity",

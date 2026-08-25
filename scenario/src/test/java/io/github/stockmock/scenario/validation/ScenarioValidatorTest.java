@@ -53,6 +53,13 @@ class ScenarioValidatorTest {
         assertThat(fillIssues(new FillSpec("1s", 1.0, null))).isEmpty();
     }
 
+    @Test
+    void rejectsANaNRatio() {
+        assertThat(fillIssues(new FillSpec("1s", Double.NaN, null)))
+                .anySatisfy(issue ->
+                        assertThat(issue.field()).isEqualTo("execution.fills[0].ratio"));
+    }
+
     // ------------------------------------------------------------- 규칙 2
 
     @Test
