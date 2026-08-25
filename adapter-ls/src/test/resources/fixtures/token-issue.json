@@ -1,0 +1,38 @@
+{
+  "tr": "oauth2-token",
+  "source": "LS 공식 API 콘솔 (2026-08-22 확인, 민감 정보 제거)",
+  "endpoint": {
+    "method": "POST",
+    "path": "/oauth2/token"
+  },
+  "request": {
+    "type": "query-parameters",
+    "fields": {
+      "appkey": "string",
+      "appsecretkey": "string",
+      "grant_type": "string",
+      "scope": "string"
+    },
+    "sample": {
+      "appkey": "SAMPLE-APPKEY",
+      "appsecretkey": "SAMPLE-APPSECRETKEY",
+      "grant_type": "client_credentials",
+      "scope": "oob"
+    }
+  },
+  "response": {
+    "type": "json-body",
+    "fields": {
+      "access_token": "string",
+      "scope": "string",
+      "token_type": "string",
+      "expires_in": "number"
+    },
+    "sample": {
+      "access_token": "SAMPLE.JWT.TOKEN",
+      "scope": "oob",
+      "token_type": "Bearer",
+      "expires_in": 86400
+    }
+  }
+}
