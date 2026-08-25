@@ -199,6 +199,10 @@ operation과 timing이 모두 일치할 때만 지연을 반환한다. 실제 �
 `constraints` 예제는 `bad-constraints.yml`에만 있다. 정상 동작하는 `rate_limit`·`token_ttl`
 카탈로그 예제는 `APP-01`이 시나리오를 서버에 연결한 뒤 추가하는 것이 낫다.
 
+팀장 확인 필요: AGENTS.md 6절은 MVP faults를 "주문 거부, `AFTER_COMMIT` 응답 지연" 2종으로
+정의하는데 `ScenarioSpec`에는 응답 지연만 있다. 주문 거부를 범위에서 뺄지 필드를 추가할지
+결정이 필요하다. `SCENARIO-01`의 "모든 필드가 필요한지 팀장에게 확인한다"와 함께 정리한다.
+
 완료 조건:
 
 ```bash
