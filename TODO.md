@@ -183,6 +183,10 @@ rate limit 구간은 슬라이딩 윈도가 아니라 epoch-second 고정 구간
 operation과 timing이 모두 일치할 때만 지연을 반환한다. 실제 지연 적용은 조립 계층의
 책임이므로 정책은 즉시 반환한다.
 
+스텁 javadoc은 "null 입력은 IAE"였으나 `configuredRule`이 null이면 `Optional.empty()`를
+반환하도록 바꿨다. faults 미설정은 오류가 아니라 "규칙 없음"이기 때문이다. operation과
+timing의 null은 그대로 거부한다.
+
 ### SCENARIO-07 카탈로그
 
 - [ ] `normal-fill.yml` 기대 결과를 문서화한다.
