@@ -126,10 +126,22 @@ core가 아직 `CoreException`을 던지지 않는 경로는 `LsErrorMapper.clas
 
 ### SCENARIO-01 YAML record 검토
 
-- [ ] `ScenarioSpec`과 예제 YAML의 필드가 일치하는지 확인한다.
-- [ ] 모든 필드가 필요한지 팀장에게 확인한다.
-- [ ] 알 수 없는 필드가 거부되는 테스트를 유지한다.
-- [ ] 실행 훅, 클래스 이름, URL 같은 실행 능력을 YAML에 추가하지 않는다.
+- [x] `ScenarioSpec`과 예제 YAML의 필드가 일치하는지 확인한다.
+- [ ] 모든 필드가 필요한지 팀장에게 확인한다. → 아래 질문 3개 대기
+- [x] 알 수 없는 필드가 거부되는 테스트를 유지한다.
+- [x] 실행 훅, 클래스 이름, URL 같은 실행 능력을 YAML에 추가하지 않는다.
+
+`ScenarioCatalogTest`가 `scenarios/` 카탈로그 전체를 읽어 spec 일치를 검증한다. 이전에는
+test resources fixture만 읽어서 카탈로그가 어긋나도 아무 테스트가 깨지지 않았다.
+
+팀장 확인이 필요한 항목:
+
+1. `seed`를 어떤 코드도 읽지 않는다. contracts.md가 "체결 시점에 난수를 사용하지 않는다"고
+   정한 이상 결정론에 seed가 필요한지 불분명하다. 유지할지 결정이 필요하다.
+2. `FillSpec.quantity`를 어떤 카탈로그 YAML도 쓰지 않는다. MVP를 `ratio`만으로 갈지
+   확인이 필요하다. 유지한다면 `SCENARIO-07`에서 예제를 추가해야 한다.
+3. `constraints`(`rate_limit`, `token_ttl`)를 쓰는 카탈로그 예제가 없다. `SCENARIO-05`
+   정책을 구현해도 사용자가 참고할 YAML이 없으므로 `SCENARIO-07`에서 추가해야 한다.
 
 ### SCENARIO-02 의미 검증기 완성
 
