@@ -164,10 +164,14 @@ ADAPTER-03, ADAPTER-04는 독립적으로 진행 가능
 
 ### SCENARIO-05 운영 제약 정책
 
-- [ ] `RateLimitPolicy`를 구현한다.
-- [ ] `TokenExpiryPolicy`를 구현한다.
-- [ ] 시스템 시각 대신 전달받은 가상 시각을 사용한다.
-- [ ] 정책 클래스는 HTTP 응답이나 LS JSON을 생성하지 않는다.
+- [x] `RateLimitPolicy`를 구현한다.
+- [x] `TokenExpiryPolicy`를 구현한다.
+- [x] 시스템 시각 대신 전달받은 가상 시각을 사용한다.
+- [x] 정책 클래스는 HTTP 응답이나 LS JSON을 생성하지 않는다.
+
+rate limit 구간은 슬라이딩 윈도가 아니라 epoch-second 고정 구간이다. 평가와 카운트 증가를
+`ConcurrentHashMap.compute`로 원자적으로 처리해 동시 요청에서 한도를 넘기지 않는다.
+토큰 만료 경계는 만료 쪽이다. 정확히 `issuedAt + ttl`이면 이미 EXPIRED다.
 
 ### SCENARIO-06 응답 지연 정책
 
