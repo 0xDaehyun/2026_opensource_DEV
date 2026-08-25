@@ -1,0 +1,16 @@
+scenario: bad_constraints
+
+account:
+  cash: 10000000
+
+constraints:
+  rate_limit:
+    per_sec: 0
+  token_ttl: 0s
+
+execution:
+  fills:
+    - after: 1s
+      ratio: 0.3
+
+seed: 42

@@ -185,10 +185,19 @@ operation과 timing이 모두 일치할 때만 지연을 반환한다. 실제 �
 
 ### SCENARIO-07 카탈로그
 
-- [ ] `normal-fill.yml` 기대 결과를 문서화한다.
-- [ ] `partial-fill.yml` 기대 결과를 문서화한다.
-- [ ] `response-delay-after-commit.yml` 기대 결과를 문서화한다.
-- [ ] 잘못된 YAML 예시와 검증 테스트를 추가한다.
+- [x] `normal-fill.yml` 기대 결과를 문서화한다.
+- [x] `partial-fill.yml` 기대 결과를 문서화한다.
+- [x] `response-delay-after-commit.yml` 기대 결과를 문서화한다.
+- [x] 잘못된 YAML 예시와 검증 테스트를 추가한다.
+
+`scenarios/README.md`에 세 시나리오의 시점별 현금·잠긴 현금·보유 수량·주문 상태와
+"봇이 검증할 것"을 적었다. 잘못된 예시는 실행용이 아니므로 카탈로그가 아니라
+`scenario/src/test/resources/invalid/`에 두고 `InvalidScenarioCatalogTest`가 각 파일의
+보고 필드를 고정한다. 카탈로그에 두면 `SCENARIO-01`의 `ScenarioCatalogTest`가 이들을
+유효한 시나리오로 검사해 깨진다.
+
+`constraints` 예제는 `bad-constraints.yml`에만 있다. 정상 동작하는 `rate_limit`·`token_ttl`
+카탈로그 예제는 `APP-01`이 시나리오를 서버에 연결한 뒤 추가하는 것이 낫다.
 
 완료 조건:
 

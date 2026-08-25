@@ -1,0 +1,11 @@
+scenario: bad_duration
+
+account:
+  cash: 10000000
+
+execution:
+  fills:
+    - after: 3
+      ratio: 0.3
+
+seed: 42
