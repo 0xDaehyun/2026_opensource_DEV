@@ -11,3 +11,5 @@ mock:
   fill:
     ratio: 0.3
     delay: 5s
+  token:
+    ttl: 24h

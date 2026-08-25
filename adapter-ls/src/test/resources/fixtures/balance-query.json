@@ -1,0 +1,114 @@
+{
+  "tr": "t0424",
+  "source": "LS 공식 API 콘솔 (2026-08-22 확인, 계좌번호 없음 — 민감 정보 없음)",
+  "endpoint": {
+    "method": "POST",
+    "path": "/stock/accno"
+  },
+  "request": {
+    "type": "json-body",
+    "inBlockName": "t0424InBlock",
+    "fields": {
+      "prcgb": "string",
+      "chegb": "string",
+      "dangb": "string",
+      "charge": "string",
+      "cts_expcode": "string"
+    }
+  },
+  "response": {
+    "type": "json-body",
+    "note": "t0424OutBlock은 배열이 아니라 단일 object다. t0424OutBlock1만 배열이다.",
+    "outBlockFields": {
+      "dtsunik": "number",
+      "cts_expcode": "string",
+      "mamt": "number",
+      "sunamt1": "number",
+      "tappamt": "number",
+      "sunamt": "number",
+      "tdtsunik": "number"
+    },
+    "outBlock1ItemFields": {
+      "sininter": "number",
+      "fee": "number",
+      "mamt": "number",
+      "sinamt": "number",
+      "mpmd": "number",
+      "mdposqt": "number",
+      "jsat": "number",
+      "janqty": "number",
+      "loandt": "string",
+      "sysprocseq": "number",
+      "price": "number",
+      "janrt": "string",
+      "jdat": "number",
+      "jpms": "number",
+      "hname": "string",
+      "appamt": "number",
+      "sunikrt": "string",
+      "jonggb": "string",
+      "msat": "number",
+      "tax": "number",
+      "pamt": "number",
+      "jpmd": "number",
+      "marketgb": "string",
+      "jangb": "string",
+      "dtsunik": "number",
+      "expcode": "string",
+      "mdat": "number",
+      "mpms": "number",
+      "lastdt": "string"
+    },
+    "sample": {
+      "rsp_cd": "00000",
+      "rsp_msg": "조회가 완료되었습니다.",
+      "t0424OutBlock": {
+        "dtsunik": 0,
+        "cts_expcode": "",
+        "mamt": 120013,
+        "sunamt1": 80000000,
+        "tappamt": 150283,
+        "sunamt": 80030265,
+        "tdtsunik": 30270
+      },
+      "t0424OutBlock1": [
+        {
+          "sininter": 0,
+          "fee": 30,
+          "mamt": 120000,
+          "sinamt": 0,
+          "mpmd": 0,
+          "mdposqt": 2,
+          "jsat": 0,
+          "janqty": 2,
+          "loandt": "",
+          "sysprocseq": 4,
+          "price": 75300,
+          "janrt": "100.00",
+          "jdat": 0,
+          "jpms": 0,
+          "hname": "삼성전자",
+          "appamt": 150283,
+          "sunikrt": "25.22",
+          "jonggb": "3",
+          "msat": 2,
+          "tax": 300,
+          "pamt": 60000,
+          "jpmd": 0,
+          "marketgb": "",
+          "jangb": "",
+          "dtsunik": 30270,
+          "expcode": "005930",
+          "mdat": 0,
+          "mpms": 60000,
+          "lastdt": ""
+        }
+      ]
+    }
+  },
+  "mvpSubset": {
+    "note": "M1 MVP는 아래 필드만 사용한다. 나머지는 core AccountView가 아직 제공하지 않는 정보(수수료·세금·평가손익 등)라 범위 밖이다.",
+    "outBlockFields": ["sunamt", "mamt", "tappamt"],
+    "outBlock1ItemFields": ["expcode", "janqty", "mdposqt"]
+  }
+}

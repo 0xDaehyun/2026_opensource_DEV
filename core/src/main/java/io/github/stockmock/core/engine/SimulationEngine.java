@@ -3,6 +3,8 @@ package io.github.stockmock.core.engine;
 import io.github.stockmock.core.account.Account;
 import io.github.stockmock.core.account.AccountView;
 import io.github.stockmock.core.clock.VirtualClock;
+import io.github.stockmock.core.error.CoreErrorCode;
+import io.github.stockmock.core.error.CoreException;
 import io.github.stockmock.core.event.EventLog;
 import io.github.stockmock.core.event.EventRecord;
 import io.github.stockmock.core.event.SimEvent;
@@ -12,6 +14,7 @@ import io.github.stockmock.core.fill.FillStep;
 import io.github.stockmock.core.order.Order;
 import io.github.stockmock.core.order.OrderState;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -36,6 +39,20 @@ public final class SimulationEngine implements EnginePort, AutoCloseable {
     private long eventSequence;
     private long orderSequence;
     private Instant activeEventTime;
+
+    /**
+     * 고정 비율 체결을 사용하는 기존 호출자를 위한 호환 생성자다.
+     * 새 조립 코드는 {@link FillPlanProvider}를 직접 주입한다.
+     */
+    public SimulationEngine(
+            VirtualClock clock,
+            long initialCash,
+            double fillRatio,
+            Duration fillDelay
+    ) {
+        this(clock, initialCash,
+                orderQuantity -> FillPlan.partial(orderQuantity, fillRatio, fillDelay));
+    }
 
     public SimulationEngine(VirtualClock clock, long initialCash, FillPlanProvider fillPlanProvider) {
         this.clock = Objects.requireNonNull(clock, "clock");
@@ -75,7 +92,8 @@ public final class SimulationEngine implements EnginePort, AutoCloseable {
         schedule(clock.now(), () -> {
             Order order = orders.get(query.orderId());
             if (order == null) {
-                result.completeExceptionally(new IllegalArgumentException("주문을 찾을 수 없습니다"));
+                result.completeExceptionally(
+                        new CoreException(CoreErrorCode.ORDER_NOT_FOUND, "주문을 찾을 수 없습니다"));
                 return;
             }
             result.complete(viewOf(order));
