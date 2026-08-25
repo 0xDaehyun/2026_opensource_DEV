@@ -1,0 +1,12 @@
+scenario: ratio_and_quantity
+
+account:
+  cash: 10000000
+
+execution:
+  fills:
+    - after: 1s
+      ratio: 0.3
+      quantity: 30
+
+seed: 42
