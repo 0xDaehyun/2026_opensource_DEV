@@ -156,11 +156,18 @@ ADAPTER-03, ADAPTER-04는 독립적으로 진행 가능
 - [x] 100주와 0.3에서 30주가 생성되는지 테스트한다.
 - [x] 같은 시나리오와 seed에서 같은 계획이 생성되는지 테스트한다.
 
-변환 로직과 테스트는 완료했으나 `CORE-02`가 아직 없어 `FillPlanProvider`를 구현하지
-못한다. 인터페이스가 병합되면 `implements`만 추가하면 되고 시그니처는 그대로다.
+`origin/feat/core-02-fill-plan-provider`의 계약은 `FillPlan create(long orderQuantity)`
+하나다. core는 시나리오 타입을 몰라야 하므로 `ExecutionSpec`을 인자로 받을 수 없다.
+그래서 설정을 생성자로 올리고 `create(long)`만 남겼다. `CORE-02`가 머지되면
+`implements FillPlanProvider`만 추가하면 된다.
+
+`after` 파싱은 생성 시 한 번만 한다. `create`는 DES 엔진 스레드에서 주문마다 호출되므로
+거기서 정규식을 돌리지 않는다.
 
 내림 규칙은 core의 `FillPlan.partial`과 같다. 내림 결과가 0이면 `FillStep`이 0 수량을
-거부하므로 최소 1주를 보장한다. 난수를 쓰지 않아 `seed`는 사용하지 않는다.
+거부하므로 최소 1주를 보장한다. 그 결과 **분할체결은 step 수 이상의 주문 수량을 요구한다.**
+검증기는 주문 수량을 모르므로 이 조건은 `create`에서 잡고 메시지에 필요한 수량을 밝힌다.
+난수를 쓰지 않아 `seed`는 사용하지 않는다.
 
 ### SCENARIO-05 운영 제약 정책
 
