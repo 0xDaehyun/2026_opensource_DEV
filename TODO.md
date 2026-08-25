@@ -43,11 +43,11 @@ ADAPTER-03, ADAPTER-04는 독립적으로 진행 가능
 
 ### CORE-02 FillPlanProvider 계약
 
-- [ ] `FillPlanProvider` 인터페이스를 core에 추가한다.
-- [ ] `SimulationEngine` 생성자로 주입한다.
-- [ ] 기존 하드코딩된 `fillRatio`, `fillDelay`를 제거한다.
-- [ ] 주문 접수 시 `FillPlan`을 한 번만 생성한다.
-- [ ] 고정 Provider를 사용한 엔진 테스트를 작성한다.
+- [x] `FillPlanProvider` 인터페이스를 core에 추가한다.
+- [x] `SimulationEngine` 생성자로 주입한다.
+- [x] 기존 하드코딩된 `fillRatio`, `fillDelay`를 제거한다.
+- [x] 주문 접수 시 `FillPlan`을 한 번만 생성한다.
+- [x] 고정 Provider를 사용한 엔진 테스트를 작성한다.
 
 ### CORE-03 취소와 계좌 불변식 보강
 
@@ -64,43 +64,55 @@ ADAPTER-03, ADAPTER-04는 독립적으로 진행 가능
 
 선행 조건: `CORE-01`
 
-- [ ] LS 공식 콘솔에서 대상 TR 요청·응답을 확인한다.
-- [ ] 민감 정보를 제거한 fixture를 저장한다.
-- [ ] `OrderStatusHandler`를 구현한다.
-- [ ] `EnginePort.query(OrderQuery)`만 사용한다.
-- [ ] 접수·부분체결·체결·취소 응답 테스트를 작성한다.
-- [ ] 존재하지 않는 주문의 LS 오류 응답을 작성한다.
+- [x] LS 공식 콘솔에서 대상 TR 요청·응답을 확인한다.
+- [x] 민감 정보를 제거한 fixture를 저장한다.
+- [x] `OrderStatusHandler`를 구현한다.
+- [x] `EnginePort.query(OrderQuery)`만 사용한다.
+- [x] 접수·부분체결·체결·취소 응답 테스트를 작성한다.
+- [x] 공식 목록 입력과 주문이 없는 빈 목록 응답을 작성한다.
+
+core의 단건 조회 계약은 유지하고, adapter가 발급한 숫자 LS 주문번호 목록을 순회해
+공식 t0425 목록 응답을 만든다.
 
 ### ADAPTER-02 미체결 전량 취소
 
 선행 조건: `CORE-01`
 
-- [ ] LS 공식 콘솔에서 취소 TR 요청·응답을 확인한다.
-- [ ] `CancelOrderHandler`를 구현한다.
-- [ ] `EnginePort.cancel(CancelOrder)`만 사용한다.
-- [ ] 부분체결 30주 이후 미체결 70주 취소 응답을 테스트한다.
-- [ ] 이미 체결·취소된 주문의 거부 응답을 테스트한다.
+- [x] LS 공식 콘솔에서 취소 TR 요청·응답을 확인한다.
+- [x] `CancelOrderHandler`를 구현한다.
+- [x] `EnginePort.cancel(CancelOrder)`만 사용한다.
+- [x] 부분체결 30주 이후 미체결 70주 취소 응답을 테스트한다.
+- [x] 이미 체결·취소된 주문의 거부 응답을 테스트한다.
 
 ### ADAPTER-03 Mock 토큰 발급
 
-- [ ] 토큰 발급 URL과 응답 fixture를 확인한다.
-- [ ] 실제 보안 검증 없이 mock 토큰을 발급한다.
-- [ ] 외부에서 TTL 값을 전달받을 수 있게 한다.
-- [ ] 정상 발급과 잘못된 본문 테스트를 작성한다.
+- [x] 토큰 발급 URL과 응답 fixture를 확인한다.
+- [x] 실제 보안 검증 없이 mock 토큰을 발급한다.
+- [x] 외부에서 TTL 값을 전달받을 수 있게 한다.
+- [x] 정상 발급과 잘못된 본문 테스트를 작성한다.
 
 ### ADAPTER-04 공통 LS 오류 봉투
 
-- [ ] `INVALID_REQUEST`를 LS 오류로 변환한다.
-- [ ] `ORDER_NOT_FOUND`를 LS 오류로 변환한다.
-- [ ] `INSUFFICIENT_FUNDS`를 LS 오류로 변환한다.
-- [ ] `ILLEGAL_ORDER_STATE`를 LS 오류로 변환한다.
-- [ ] core에 `rsp_cd`, TR, InBlock 용어를 추가하지 않는다.
+- [x] `INVALID_REQUEST`를 LS 오류로 변환한다.
+- [x] `ORDER_NOT_FOUND`를 LS 오류로 변환한다.
+- [x] `INSUFFICIENT_FUNDS`를 LS 오류로 변환한다.
+- [x] `ILLEGAL_ORDER_STATE`를 LS 오류로 변환한다.
+- [x] core에 `rsp_cd`, TR, InBlock 용어를 추가하지 않는다.
+
+`rsp_cd` 값은 LS 공식 콘솔 확인 전까지 임시값이다. 409와 429는 AGENTS.md 6절의 관측
+목록에 없는 추정값이며 `ADAPTER-05` 확인 대상이다.
+
+core가 아직 `CoreException`을 던지지 않는 경로는 `LsErrorMapper.classify()`가 예외 타입으로
+임시 판정한다. 증거금 부족은 예외가 아니라 `OrderResult(REJECTED)`로 오므로 이 봉투에
+도달하지 않고, 취소 실패는 도달하되 코드가 아닌 타입으로 판정된다. `CORE-03`에서 core가
+`CoreException(INVALID_REQUEST / ORDER_NOT_FOUND / ILLEGAL_ORDER_STATE)`을 던지면
+`classify()`의 타입 판정 갈래를 제거한다.
 
 ### ADAPTER-05 계약 fixture 테스트
 
-- [ ] 다섯 API fixture의 필드 이름과 JSON 구조를 비교한다.
-- [ ] 실제 값이 아니라 구조와 타입을 검증한다.
-- [ ] 계좌번호와 토큰 등 민감 정보가 없는지 확인한다.
+- [x] 다섯 API fixture의 필드 이름과 JSON 구조를 비교한다.
+- [x] 실제 값이 아니라 구조와 타입을 검증한다.
+- [x] 계좌번호와 토큰 등 민감 정보가 없는지 확인한다.
 
 완료 조건:
 
@@ -114,10 +126,22 @@ ADAPTER-03, ADAPTER-04는 독립적으로 진행 가능
 
 ### SCENARIO-01 YAML record 검토
 
-- [ ] `ScenarioSpec`과 예제 YAML의 필드가 일치하는지 확인한다.
-- [ ] 모든 필드가 필요한지 팀장에게 확인한다.
-- [ ] 알 수 없는 필드가 거부되는 테스트를 유지한다.
-- [ ] 실행 훅, 클래스 이름, URL 같은 실행 능력을 YAML에 추가하지 않는다.
+- [x] `ScenarioSpec`과 예제 YAML의 필드가 일치하는지 확인한다.
+- [ ] 모든 필드가 필요한지 팀장에게 확인한다. → 아래 질문 3개 대기
+- [x] 알 수 없는 필드가 거부되는 테스트를 유지한다.
+- [x] 실행 훅, 클래스 이름, URL 같은 실행 능력을 YAML에 추가하지 않는다.
+
+`ScenarioCatalogTest`가 `scenarios/` 카탈로그 전체를 읽어 spec 일치를 검증한다. 이전에는
+test resources fixture만 읽어서 카탈로그가 어긋나도 아무 테스트가 깨지지 않았다.
+
+팀장 확인이 필요한 항목:
+
+1. `seed`를 어떤 코드도 읽지 않는다. contracts.md가 "체결 시점에 난수를 사용하지 않는다"고
+   정한 이상 결정론에 seed가 필요한지 불분명하다. 유지할지 결정이 필요하다.
+2. `FillSpec.quantity`를 어떤 카탈로그 YAML도 쓰지 않는다. MVP를 `ratio`만으로 갈지
+   확인이 필요하다. 유지한다면 `SCENARIO-07`에서 예제를 추가해야 한다.
+3. `constraints`(`rate_limit`, `token_ttl`)를 쓰는 카탈로그 예제가 없다. `SCENARIO-05`
+   정책을 구현해도 사용자가 참고할 YAML이 없으므로 `SCENARIO-07`에서 추가해야 한다.
 
 ### SCENARIO-02 의미 검증기 완성
 
@@ -156,11 +180,18 @@ ADAPTER-03, ADAPTER-04는 독립적으로 진행 가능
 - [x] 100주와 0.3에서 30주가 생성되는지 테스트한다.
 - [x] 같은 시나리오와 seed에서 같은 계획이 생성되는지 테스트한다.
 
-변환 로직과 테스트는 완료했으나 `CORE-02`가 아직 없어 `FillPlanProvider`를 구현하지
-못한다. 인터페이스가 병합되면 `implements`만 추가하면 되고 시그니처는 그대로다.
+`origin/feat/core-02-fill-plan-provider`의 계약은 `FillPlan create(long orderQuantity)`
+하나다. core는 시나리오 타입을 몰라야 하므로 `ExecutionSpec`을 인자로 받을 수 없다.
+그래서 설정을 생성자로 올리고 `create(long)`만 남겼다. `CORE-02`가 머지되면
+`implements FillPlanProvider`만 추가하면 된다.
+
+`after` 파싱은 생성 시 한 번만 한다. `create`는 DES 엔진 스레드에서 주문마다 호출되므로
+거기서 정규식을 돌리지 않는다.
 
 내림 규칙은 core의 `FillPlan.partial`과 같다. 내림 결과가 0이면 `FillStep`이 0 수량을
-거부하므로 최소 1주를 보장한다. 난수를 쓰지 않아 `seed`는 사용하지 않는다.
+거부하므로 최소 1주를 보장한다. 그 결과 **분할체결은 step 수 이상의 주문 수량을 요구한다.**
+검증기는 주문 수량을 모르므로 이 조건은 `create`에서 잡고 메시지에 필요한 수량을 밝힌다.
+난수를 쓰지 않아 `seed`는 사용하지 않는다.
 
 ### SCENARIO-05 운영 제약 정책
 
