@@ -164,6 +164,10 @@ ADAPTER-03, ADAPTER-04는 독립적으로 진행 가능
 `after` 파싱은 생성 시 한 번만 한다. `create`는 DES 엔진 스레드에서 주문마다 호출되므로
 거기서 정규식을 돌리지 않는다.
 
+`ScenarioSettings`가 YAML 문자열을 정책 입력 타입으로 바꾼다. 이 변환이 없으면 `APP-01`이
+`Operation.valueOf`와 `DurationParser`를 직접 불러야 하고, contracts.md의 "app은 업무
+규칙을 갖지 않는다"에 어긋난다.
+
 내림 규칙은 core의 `FillPlan.partial`과 같다. 내림 결과가 0이면 `FillStep`이 0 수량을
 거부하므로 최소 1주를 보장한다. 그 결과 **분할체결은 step 수 이상의 주문 수량을 요구한다.**
 검증기는 주문 수량을 모르므로 이 조건은 `create`에서 잡고 메시지에 필요한 수량을 밝힌다.
