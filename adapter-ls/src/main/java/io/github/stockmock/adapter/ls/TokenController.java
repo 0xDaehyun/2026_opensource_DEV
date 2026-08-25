@@ -1,9 +1,12 @@
 package io.github.stockmock.adapter.ls;
 
+import org.springframework.stereotype.Component;
+
 import java.time.Duration;
+import java.util.UUID;
 
 /**
- * TODO(ADAPTER-03): LS 형태의 Mock 토큰 발급 endpoint를 구현한다.
+ * LS 형태의 Mock 토큰 발급 endpoint다.
  *
  * <h2>입력</h2>
  * <ul>
@@ -25,11 +28,29 @@ import java.time.Duration;
  *   <li>실제 키 인증, 암호화, 외부 네트워크 호출은 하지 않는다.</li>
  * </ul>
  *
- * <p>구현 완료 후에만 Spring Controller 어노테이션과 공식 URL을 추가한다.
- * JSON 필드명은 공식 LS fixture로 검증한다.</p>
+ * <p>HTTP 배선({@code POST /oauth2/token})은 {@link LsController}가 담당한다.
+ * JSON 필드명은 공식 LS fixture({@code fixtures/token-issue.json})로 검증했다.</p>
  */
+@Component
 public final class TokenController {
     public TokenResponse issue(TokenRequest request, Duration configuredTtl) {
-        throw new UnsupportedOperationException("TODO(ADAPTER-03): Mock 토큰 발급");
+        if (request == null) {
+            throw new LsRequestException("요청 본문이 없습니다.");
+        }
+        requireNonBlank(request.grantType(), "grant_type");
+        requireNonBlank(request.appKey(), "appkey");
+        requireNonBlank(request.appSecretKey(), "appsecretkey");
+        if (configuredTtl == null || configuredTtl.isZero() || configuredTtl.isNegative()) {
+            throw new IllegalArgumentException("token TTL은 0보다 커야 합니다.");
+        }
+
+        String accessToken = "mock-" + UUID.randomUUID();
+        return new TokenResponse(accessToken, request.scope(), "Bearer", configuredTtl.toSeconds());
+    }
+
+    private void requireNonBlank(String value, String fieldName) {
+        if (value == null || value.isBlank()) {
+            throw new LsRequestException(fieldName + "이(가) 없습니다.");
+        }
     }
 }

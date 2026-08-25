@@ -1,22 +1,32 @@
 package io.github.stockmock.adapter.ls;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.LinkedHashMap;
+import java.time.Duration;
 import java.util.Map;
 
+/**
+ * LS는 여러 TR이 같은 URL을 공유하고 요청 본문의 InBlock 키로 동작이 갈린다. 그래서 TR마다
+ * Controller를 만들지 않고 URL 소수 + {@link LsTrDispatcher} 구조를 쓴다.
+ *
+ * <p>오류 응답은 {@link LsErrorAdvice}가 만든다.</p>
+ */
 @RestController
 public final class LsController {
     private final LsTrDispatcher dispatcher;
+    private final TokenController tokenController;
+    private final Duration tokenTtl;
 
-    public LsController(LsTrDispatcher dispatcher) {
+    public LsController(LsTrDispatcher dispatcher, TokenController tokenController,
+            @Value("${mock.token.ttl:PT24H}") Duration tokenTtl) {
         this.dispatcher = dispatcher;
+        this.tokenController = tokenController;
+        this.tokenTtl = tokenTtl;
     }
 
     @PostMapping({"/stock/order", "/stock/accno"})
@@ -24,20 +34,13 @@ public final class LsController {
         return dispatcher.dispatch(body);
     }
 
-    @ExceptionHandler(UnknownTrException.class)
-    public ResponseEntity<Map<String, Object>> unknownTr(UnknownTrException exception) {
-        return error(HttpStatus.NOT_FOUND, "40400", exception.getMessage());
-    }
-
-    @ExceptionHandler({LsRequestException.class, IllegalArgumentException.class})
-    public ResponseEntity<Map<String, Object>> badRequest(RuntimeException exception) {
-        return error(HttpStatus.BAD_REQUEST, "40000", exception.getMessage());
-    }
-
-    private ResponseEntity<Map<String, Object>> error(HttpStatus status, String code, String message) {
-        Map<String, Object> envelope = new LinkedHashMap<>();
-        envelope.put("rsp_cd", code);
-        envelope.put("rsp_msg", message);
-        return ResponseEntity.status(status).body(envelope);
+    @PostMapping("/oauth2/token")
+    public TokenResponse issueToken(
+            @RequestParam(value = "grant_type", required = false) String grantType,
+            @RequestParam(value = "appkey", required = false) String appKey,
+            @RequestParam(value = "appsecretkey", required = false) String appSecretKey,
+            @RequestParam(value = "scope", required = false) String scope) {
+        TokenRequest request = new TokenRequest(grantType, appKey, appSecretKey, scope);
+        return tokenController.issue(request, tokenTtl);
     }
 }

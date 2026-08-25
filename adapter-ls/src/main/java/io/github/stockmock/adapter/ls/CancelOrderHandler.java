@@ -3,54 +3,105 @@ package io.github.stockmock.adapter.ls;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.github.stockmock.core.engine.CancelOrder;
 import io.github.stockmock.core.engine.EnginePort;
-import io.github.stockmock.core.engine.OrderResult;
+import org.springframework.stereotype.Component;
 
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * TODO(ADAPTER-02): LS 미체결 주문 전량 취소를 구현한다.
+ * LS 미체결 주문 전량 취소 handler다.
  *
- * <h2>입력</h2>
- * <ul>
- *   <li>{@code inBlock}: 공식 LS 취소 fixture와 같은 JSON object</li>
- *   <li>원주문번호: 취소 대상 core 주문번호</li>
- *   <li>clientOrderId: 취소 요청을 식별하는 비어 있지 않은 문자열</li>
- * </ul>
- *
- * <h2>처리</h2>
- * <ol>
- *   <li>InBlock을 검증한다.</li>
- *   <li>{@link CancelOrder}를 생성한다.</li>
- *   <li>{@link EnginePort#cancel(CancelOrder)}만 호출한다.</li>
- *   <li>{@link OrderResult}를 공식 LS OutBlock으로 변환한다.</li>
- * </ol>
- *
- * <h2>출력</h2>
- * <p>성공 시 주문번호, 취소 수량, 최종 상태와 LS 성공 봉투를 반환한다.</p>
- *
- * <h2>경계와 오류</h2>
- * <ul>
- *   <li>MVP는 부분 취소가 아니라 미체결 수량 전체를 취소한다.</li>
- *   <li>30/100주 부분체결 주문은 70주만 취소한다.</li>
- *   <li>FILLED, CANCELLED, REJECTED 주문 취소는 오류 봉투로 변환한다.</li>
- * </ul>
- *
- * <p>현금 반환과 상태 변경은 core의 책임이다. 구현 완료 후에만 {@code @Component}를 추가한다.</p>
+ * <p>MVP는 부분 취소를 지원하지 않으므로 {@link CancelOrder#qty()}는 항상 0(전량)으로
+ * 보낸다. 외부에는 별도의 숫자 취소 접수번호를 발급하고, {@code PrntOrdNo}에는 원주문의
+ * LS 주문번호를 반환한다.</p>
  */
+@Component
 final class CancelOrderHandler implements TrHandler {
+    private static final DateTimeFormatter ORDER_TIME = DateTimeFormatter.ofPattern("HHmmssSSS")
+            .withZone(ZoneId.of("Asia/Seoul"));
     private final EnginePort engine;
+    private final LsOrderNumberRegistry orderNumbers;
+    private final AtomicLong clientSequence = new AtomicLong();
 
-    CancelOrderHandler(EnginePort engine) {
+    CancelOrderHandler(EnginePort engine, LsOrderNumberRegistry orderNumbers) {
         this.engine = engine;
+        this.orderNumbers = orderNumbers;
     }
 
     @Override
     public String trCode() {
-        return "CSPAT00801"; // TODO(ADAPTER-02): 공식 콘솔에서 취소 TR을 최종 확인한다.
+        return "CSPAT00801";
     }
 
     @Override
     public Map<String, Object> handle(JsonNode inBlock) {
-        throw new UnsupportedOperationException("TODO(ADAPTER-02): 미체결 주문 전량 취소");
+        if (inBlock == null || !inBlock.isObject()) {
+            throw new LsRequestException("CSPAT00801InBlock1이 필요합니다");
+        }
+        long originalLsOrderNumber = requiredLong(inBlock, "OrgOrdNo");
+        String targetOrderId = orderNumbers.coreOrderId(originalLsOrderNumber);
+        String isuNo = text(inBlock, "IsuNo", "");
+        long ordQty = requiredLong(inBlock, "OrdQty");
+        String clientOrderId = text(inBlock, "clientOrderId", "ls-cancel-" + clientSequence.incrementAndGet());
+
+        engine.cancel(new CancelOrder(clientOrderId, targetOrderId, 0)).join();
+        long cancellationOrderNumber = orderNumbers.issueReceiptNumber();
+
+        Map<String, Object> outBlock1 = new LinkedHashMap<>();
+        outBlock1.put("RecCnt", 1);
+        outBlock1.put("AcntNo", text(inBlock, "AcntNo", "00000000000"));
+        outBlock1.put("OrgOrdNo", originalLsOrderNumber);
+        outBlock1.put("IsuNo", isuNo);
+        outBlock1.put("OrdQty", ordQty);
+
+        Map<String, Object> outBlock2 = new LinkedHashMap<>();
+        outBlock2.put("RecCnt", 1);
+        outBlock2.put("OrdNo", cancellationOrderNumber);
+        outBlock2.put("PrntOrdNo", originalLsOrderNumber);
+        outBlock2.put("OrdTime", ORDER_TIME.format(java.time.Instant.EPOCH));
+        outBlock2.put("OrdMktCode", "10");
+        outBlock2.put("OrdPtnCode", "02");
+
+        Map<String, Object> blocks = new LinkedHashMap<>();
+        blocks.put("CSPAT00801OutBlock1", outBlock1);
+        blocks.put("CSPAT00801OutBlock2", outBlock2);
+        return envelope("00156", "취소주문이 완료되었습니다.", blocks);
+    }
+
+    private Map<String, Object> envelope(String code, String message, Map<String, Object> blocks) {
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("rsp_cd", code);
+        response.put("rsp_msg", message);
+        response.putAll(blocks);
+        return response;
+    }
+
+    private String requiredText(JsonNode node, String field) {
+        String value = text(node, field, null);
+        if (value == null || value.isBlank()) {
+            throw new LsRequestException(field + " 값이 필요합니다");
+        }
+        return value;
+    }
+
+    private long requiredLong(JsonNode node, String field) {
+        String value = requiredText(node, field);
+        try {
+            long parsed = Long.parseLong(value);
+            if (parsed <= 0) {
+                throw new NumberFormatException();
+            }
+            return parsed;
+        } catch (NumberFormatException exception) {
+            throw new LsRequestException(field + " 값은 0보다 큰 정수여야 합니다");
+        }
+    }
+
+    private String text(JsonNode node, String field, String fallback) {
+        JsonNode value = node.get(field);
+        return value == null || value.isNull() ? fallback : value.asText();
     }
 }
