@@ -1,6 +1,7 @@
 package io.github.stockmock.scenario.execution;
 
 import io.github.stockmock.core.fill.FillPlan;
+import io.github.stockmock.core.fill.FillPlanProvider;
 import io.github.stockmock.core.fill.FillStep;
 import io.github.stockmock.scenario.spec.ScenarioSpec;
 import io.github.stockmock.scenario.time.DurationParser;
@@ -14,13 +15,10 @@ import java.util.Objects;
  * 검증된 execution 설정을 core {@link FillPlan}으로 변환한다.
  *
  * <h2>core 계약</h2>
- * <p>core의 {@code FillPlanProvider}는 {@code FillPlan create(long orderQuantity)} 하나만
+ * <p>core의 {@link FillPlanProvider}는 {@code FillPlan create(long orderQuantity)} 하나만
  * 요구한다. core는 시나리오 타입을 몰라야 하므로(의존 방향 {@code core ← scenario})
  * {@code ExecutionSpec}을 인자로 받을 수 없다. 그래서 설정은 생성자로 받고 {@link #create(long)}
  * 만 남긴다.</p>
- *
- * <p>TODO(CORE-02): 인터페이스가 병합되면 {@code implements FillPlanProvider}만 추가한다.
- * 메서드 시그니처는 이미 맞춰두었다.</p>
  *
  * <h2>변환 규칙</h2>
  * <ul>
@@ -37,7 +35,7 @@ import java.util.Objects;
  * <p>난수를 쓰지 않으므로 같은 설정과 주문 수량에서 항상 같은 계획이 나온다.
  * 시나리오의 {@code seed}는 사용하지 않는다.</p>
  */
-public final class ScenarioFillPlanProvider {
+public final class ScenarioFillPlanProvider implements FillPlanProvider {
     private final List<ParsedFill> fills;
 
     public ScenarioFillPlanProvider(ScenarioSpec.ExecutionSpec execution) {
@@ -52,6 +50,7 @@ public final class ScenarioFillPlanProvider {
         this.fills = parse(execution.fills(), durationParser);
     }
 
+    @Override
     public FillPlan create(long orderQuantity) {
         if (orderQuantity <= 0) {
             throw new IllegalArgumentException("주문 수량은 0보다 커야 합니다: " + orderQuantity);
@@ -89,9 +88,11 @@ public final class ScenarioFillPlanProvider {
                 throw new IllegalArgumentException(
                         "ratio와 quantity 중 정확히 하나가 필요합니다: fills[" + index + "]");
             }
-            if (hasRatio && (spec.ratio() <= 0 || spec.ratio() > 1)) {
+            if (hasRatio && (!Double.isFinite(spec.ratio())
+                    || spec.ratio() <= 0
+                    || spec.ratio() > 1)) {
                 throw new IllegalArgumentException(
-                        "체결 비율은 0 초과 1 이하여야 합니다: " + spec.ratio());
+                        "체결 비율은 유한한 숫자이며 0 초과 1 이하여야 합니다: " + spec.ratio());
             }
             if (hasQuantity && spec.quantity() <= 0) {
                 throw new IllegalArgumentException("체결 수량은 0보다 커야 합니다: " + spec.quantity());
