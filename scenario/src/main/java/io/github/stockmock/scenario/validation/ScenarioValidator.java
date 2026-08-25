@@ -5,7 +5,6 @@ import io.github.stockmock.scenario.fault.FaultTiming;
 import io.github.stockmock.scenario.spec.ScenarioSpec;
 import io.github.stockmock.scenario.time.DurationParser;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -75,8 +74,13 @@ public final class ScenarioValidator {
         }
     }
 
+    /**
+     * execution이 없거나 fills가 비면 {@code ScenarioFillPlanProvider}가 계획을 세우지 못해
+     * 모든 주문이 거부된다. 검증을 통과했는데 전 주문이 실패하는 상황을 막기 위해 여기서 잡는다.
+     */
     private void validateExecution(ScenarioSpec.ExecutionSpec execution, List<ValidationIssue> issues) {
         if (execution == null || execution.fills() == null || execution.fills().isEmpty()) {
+            issues.add(new ValidationIssue("execution.fills", "체결 step이 하나 이상 필요합니다"));
             return;
         }
 
@@ -87,7 +91,19 @@ public final class ScenarioValidator {
         validateRatioSum(fills, issues);
     }
 
+    /**
+     * YAML의 {@code - } 빈 항목은 Jackson이 null 원소로 만든다. 널 가드가 없으면 검증 오류가
+     * 아니라 NPE 스택트레이스가 사용자에게 나간다.
+     *
+     * <p>ratio/quantity 문제가 있어도 조기 반환하지 않는다. 같은 fill의 {@code after} 오류까지
+     * 함께 보고해야 "첫 오류에서 멈추지 않는다"는 원칙이 지켜진다.</p>
+     */
     private void validateFill(ScenarioSpec.FillSpec fill, String path, List<ValidationIssue> issues) {
+        if (fill == null) {
+            issues.add(new ValidationIssue(path, "체결 step이 비어 있습니다"));
+            return;
+        }
+
         boolean hasRatio = fill.ratio() != null;
         boolean hasQuantity = fill.quantity() != null;
 
@@ -95,9 +111,7 @@ public final class ScenarioValidator {
             issues.add(new ValidationIssue(path,
                     hasRatio ? "ratio와 quantity는 동시에 쓸 수 없습니다"
                              : "ratio 또는 quantity 중 하나가 필요합니다"));
-            return;
         }
-
         if (hasRatio && (fill.ratio() <= 0 || fill.ratio() > 1)) {
             issues.add(new ValidationIssue(path + ".ratio",
                     "체결 비율은 0 초과 1 이하여야 합니다: " + fill.ratio()));
@@ -115,12 +129,14 @@ public final class ScenarioValidator {
      */
     private void validateRatioSum(List<ScenarioSpec.FillSpec> fills, List<ValidationIssue> issues) {
         double sum = fills.stream()
+                .filter(Objects::nonNull)
                 .map(ScenarioSpec.FillSpec::ratio)
                 .filter(Objects::nonNull)
                 .mapToDouble(Double::doubleValue)
                 .sum();
 
-        // 0.3 + 0.7이 부동소수점에서 1을 살짝 넘으므로 여유를 둔다.
+        // epsilon은 방어값이다. 백분율 조합을 전수 확인한 결과 정확합이 1인데 double 합이 1을
+        // 넘는 경우는 없었고, DoubleStream.sum()은 보정 합산이라 오차가 더 작다.
         if (sum > 1.0 + 1e-9) {
             issues.add(new ValidationIssue("execution.fills",
                     "체결 비율의 합은 1을 넘을 수 없습니다: " + sum));
@@ -144,10 +160,7 @@ public final class ScenarioValidator {
             return;
         }
         try {
-            Duration parsed = durationParser.parse(value);
-            if (parsed.isZero() || parsed.isNegative()) {
-                issues.add(new ValidationIssue(path, "시간은 0보다 커야 합니다: " + value));
-            }
+            durationParser.parse(value);
         } catch (IllegalArgumentException invalid) {
             issues.add(new ValidationIssue(path, invalid.getMessage()));
         }

@@ -32,7 +32,7 @@ class ScenarioValidatorTest {
 
     @Test
     void reportsMissingNameAndNegativeCash() {
-        ScenarioSpec spec = new ScenarioSpec(" ", new AccountSpec(-1L), null, null, null, 42L);
+        ScenarioSpec spec = new ScenarioSpec(" ", new AccountSpec(-1L), null, validExecution(), null, 42L);
 
         assertThat(validator.validate(spec))
                 .extracting(ValidationIssue::field)
@@ -165,13 +165,46 @@ class ScenarioValidatorTest {
 
     // ----------------------------------------------------------------- 공통
 
+    /**
+     * 한 fill 안에서도 조기 반환하지 않는다. hasSizeGreaterThanOrEqualTo로 두면 ratio/quantity
+     * 문제가 같은 fill의 after 오류를 가려도 통과하므로 containsExactly로 고정한다.
+     */
     @Test
     void collectsEveryIssueInsteadOfFailingOnTheFirst() {
         ScenarioSpec spec = new ScenarioSpec("bad", new AccountSpec(10L),
                 new ConstraintsSpec(new RateLimitSpec(0), "0s"),
                 new ExecutionSpec(List.of(new FillSpec("-1s", 2.0, 5L))), null, 42L);
 
-        assertThat(validator.validate(spec)).hasSizeGreaterThanOrEqualTo(4);
+        assertThat(validator.validate(spec))
+                .extracting(ValidationIssue::field)
+                .containsExactly(
+                        "constraints.rate_limit.per_sec",
+                        "constraints.token_ttl",
+                        "execution.fills[0]",
+                        "execution.fills[0].ratio",
+                        "execution.fills[0].after",
+                        "execution.fills");
+    }
+
+    /** YAML의 빈 항목은 Jackson이 null 원소로 만든다. NPE가 아니라 검증 오류여야 한다. */
+    @Test
+    void reportsAnEmptyFillEntryInsteadOfThrowing() {
+        ExecutionSpec execution = new ExecutionSpec(java.util.Arrays.asList(new FillSpec[]{null}));
+
+        assertThat(validator.validate(scenario(execution, null, null)))
+                .extracting(ValidationIssue::field)
+                .containsExactly("execution.fills[0]");
+    }
+
+    /** 검증을 통과했는데 provider가 모든 주문을 거부하는 상황을 막는다. */
+    @Test
+    void rejectsAMissingOrEmptyExecutionBlock() {
+        assertThat(validator.validate(rawScenario(null)))
+                .extracting(ValidationIssue::field)
+                .containsExactly("execution.fills");
+        assertThat(validator.validate(rawScenario(new ExecutionSpec(List.of()))))
+                .extracting(ValidationIssue::field)
+                .containsExactly("execution.fills");
     }
 
     @Test
@@ -188,8 +221,19 @@ class ScenarioValidatorTest {
         return validator.validate(scenario(new ExecutionSpec(List.of(fill)), null, null));
     }
 
+    /** execution을 지정하지 않으면 유효한 기본값을 넣어 검사 대상 규칙만 남긴다. */
     private ScenarioSpec scenario(ExecutionSpec execution, ConstraintsSpec constraints, FaultsSpec faults) {
         return new ScenarioSpec("valid_scenario", new AccountSpec(10_000_000L),
-                constraints, execution, faults, 42L);
+                constraints, execution == null ? validExecution() : execution, faults, 42L);
+    }
+
+    /** execution 자체를 검사하는 테스트용이다. 기본값으로 바꿔치지 않는다. */
+    private ScenarioSpec rawScenario(ExecutionSpec execution) {
+        return new ScenarioSpec("valid_scenario", new AccountSpec(10_000_000L),
+                null, execution, null, 42L);
+    }
+
+    private ExecutionSpec validExecution() {
+        return new ExecutionSpec(List.of(new FillSpec("1s", 0.3, null)));
     }
 }
