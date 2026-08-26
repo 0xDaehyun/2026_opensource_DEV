@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="주식 프로그램 개발용 로컬 Mock 서버 대시보드">
+  <title>Stock Mock Console</title>
+  <link rel="stylesheet" href="/dashboard.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Stock Mock Console 홈">
+      <span class="brand-mark">SM</span>
+      <span>
+        <strong>Stock Mock Console</strong>
+        <small>LS OpenAPI compatible simulator</small>
+      </span>
+    </a>
+    <div class="server-meta">
+      <span id="server-status" class="status-chip status-running">● RUNNING</span>
+      <span id="virtual-time" class="mono">연결 중...</span>
+    </div>
+  </header>
+
+  <main class="page-shell">
+    <section class="hero">
+      <div>
+        <p class="eyebrow">LOCAL TRADING LAB</p>
+        <h1>주문 상태와 장애 대응을<br>한 화면에서 확인하세요.</h1>
+        <p class="hero-copy">실계좌 없이 주문 접수, 부분체결, 취소와 계좌 정합성을 관찰합니다.</p>
+      </div>
+      <div class="demo-actions" aria-label="데모 실행">
+        <button id="buy-button" class="button button-primary" type="button">100주 데모 매수</button>
+        <button id="cancel-button" class="button button-secondary" type="button">미체결 전량 취소</button>
+        <button id="refresh-button" class="button button-ghost" type="button">새로고침</button>
+        <p id="action-message" class="action-message" aria-live="polite">버튼은 실제 LS 호환 API를 호출합니다.</p>
+      </div>
+    </section>
+
+    <section class="metric-grid" aria-label="주요 지표">
+      <article class="metric-card metric-highlight">
+        <span>주문 가능 현금</span>
+        <strong id="cash">-</strong>
+        <small>매수 주문에 사용할 수 있는 금액</small>
+      </article>
+      <article class="metric-card">
+        <span>미체결 잠금액</span>
+        <strong id="locked-cash">-</strong>
+        <small>취소 시 다시 반환되는 금액</small>
+      </article>
+      <article class="metric-card">
+        <span>보유 수량</span>
+        <strong id="position-quantity">-</strong>
+        <small id="position-symbol">보유 종목 없음</small>
+      </article>
+      <article class="metric-card">
+        <span>전체 주문</span>
+        <strong id="total-orders">-</strong>
+        <small id="order-breakdown">주문 내역 없음</small>
+      </article>
+    </section>
+
+    <section class="content-grid">
+      <article class="panel scenario-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">ACTIVE SCENARIO</p>
+            <h2 id="scenario-name">기본 부분체결</h2>
+          </div>
+          <span class="scenario-icon">30%</span>
+        </div>
+        <div class="scenario-flow">
+          <div><span>01</span><strong>주문 접수</strong><small>현금 잠금</small></div>
+          <i></i>
+          <div><span>02</span><strong>부분체결</strong><small id="fill-setting">설정 확인 중</small></div>
+          <i></i>
+          <div><span>03</span><strong>미체결</strong><small>취소 가능</small></div>
+        </div>
+        <p class="panel-note">현재 MVP는 <code>application.yml</code>의 체결 비율과 지연 시간을 사용합니다.</p>
+      </article>
+
+      <article class="panel state-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">ORDER STATE</p>
+            <h2>현재 주문 분포</h2>
+          </div>
+        </div>
+        <div class="state-list">
+          <div><span class="state-dot accepted"></span><span>접수</span><strong id="count-accepted">0</strong></div>
+          <div><span class="state-dot partial"></span><span>부분체결</span><strong id="count-partial">0</strong></div>
+          <div><span class="state-dot filled"></span><span>체결완료</span><strong id="count-filled">0</strong></div>
+          <div><span class="state-dot cancelled"></span><span>취소</span><strong id="count-cancelled">0</strong></div>
+          <div><span class="state-dot rejected"></span><span>거부</span><strong id="count-rejected">0</strong></div>
+        </div>
+      </article>
+    </section>
+
+    <section class="panel table-panel">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">ORDERS</p>
+          <h2>주문 모니터링</h2>
+        </div>
+        <span id="last-updated" class="muted">-</span>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>주문번호</th>
+              <th>종목</th>
+              <th>상태</th>
+              <th class="number">주문</th>
+              <th class="number">체결</th>
+              <th class="number">미체결</th>
+              <th class="number">가격</th>
+            </tr>
+          </thead>
+          <tbody id="orders-body">
+            <tr><td colspan="7" class="empty-cell">아직 주문이 없습니다.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel event-panel">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">EVENT STREAM</p>
+          <h2>최근 엔진 이벤트</h2>
+        </div>
+        <span class="live-label"><i></i> LIVE</span>
+      </div>
+      <div id="event-list" class="event-list">
+        <p class="empty-state">주문을 실행하면 이벤트가 여기에 표시됩니다.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <span>Stock Mock Server · localhost:8080</span>
+    <code>GET /mock/dashboard</code>
+  </footer>
+
+  <script src="/dashboard.js" defer></script>
+</body>
+</html>

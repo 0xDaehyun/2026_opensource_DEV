@@ -6,6 +6,8 @@ server:
   port: 8080
 
 mock:
+  clock:
+    origin: 2026-01-02T00:00:00Z
   account:
     initial-cash: 10000000
   fill:

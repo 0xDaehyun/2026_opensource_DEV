@@ -18,12 +18,18 @@ public class MockServerApplication {
         SpringApplication.run(MockServerApplication.class, args);
     }
 
+    @Bean
+    VirtualClock virtualClock(
+            @Value("${mock.clock.origin:2026-01-02T00:00:00Z}") Instant origin) {
+        return VirtualClock.attached(origin);
+    }
+
     @Bean(destroyMethod = "close")
     SimulationEngine simulationEngine(
+            VirtualClock virtualClock,
             @Value("${mock.account.initial-cash:10000000}") long initialCash,
             FillPlanProvider fillPlanProvider) {
-        return new SimulationEngine(VirtualClock.attached(Instant.parse("2026-01-02T00:00:00Z")),
-                initialCash, fillPlanProvider);
+        return new SimulationEngine(virtualClock, initialCash, fillPlanProvider);
     }
 
     @Bean
