@@ -30,13 +30,49 @@ app         Spring Boot 조립과 통합 테스트. 팀장 담당
 의존 방향은 `app → adapter-ls → core ← scenario`입니다. `scenario` 골격은 현재 독립적으로
 빌드되며, `FillPlanProvider` 계약이 준비된 뒤 `app`에서 core에 연결합니다.
 
-## 실행
+## Docker 실행 — 사용자 권장
+
+Docker Desktop을 실행한 뒤 저장소 루트에서 다음 명령을 실행합니다.
+
+```bash
+docker compose up --build
+```
+
+이미지 빌드와 서버 실행이 끝나면 브라우저에서 대시보드를 엽니다.
+
+```text
+http://localhost:8080
+```
+
+백그라운드에서 실행하려면 `-d`를 붙입니다.
+
+```bash
+docker compose up --build -d
+docker compose logs -f
+```
+
+서버를 종료하고 컨테이너를 제거하려면 다음 명령을 사용합니다. 서버를 다시 시작하면 계좌와
+주문 상태도 초기화됩니다.
+
+```bash
+docker compose down
+```
+
+환경 변수로 초기 현금과 체결 방식을 바꿀 수 있습니다.
+
+```bash
+MOCK_FILL_RATIO=0.5 MOCK_FILL_DELAY=2s docker compose up --build
+```
+
+## 로컬 개발 실행
 
 Java 21 이상에서 다음 명령을 실행합니다.
 
 ```bash
 ./gradlew :app:bootRun
 ```
+
+Docker와 로컬 실행은 동시에 켤 수 없습니다. 둘 다 기본적으로 `8080` 포트를 사용합니다.
 
 주문:
 
