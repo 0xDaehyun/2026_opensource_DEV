@@ -106,6 +106,19 @@ class LsErrorAdviceTest {
     }
 
     @Test
+    void mapsRequestPolicyRejectionsToObservedLsEnvelopes() {
+        ResponseEntity<Map<String, Object>> expired = advice.policyRejected(
+                new LsPolicyException(LsPolicyDecision.TOKEN_EXPIRED));
+        ResponseEntity<Map<String, Object>> limited = advice.policyRejected(
+                new LsPolicyException(LsPolicyDecision.RATE_LIMITED));
+
+        assertThat(expired.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(expired.getBody()).containsEntry("rsp_cd", "40100");
+        assertThat(limited.getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+        assertThat(limited.getBody()).containsEntry("rsp_cd", "42900");
+    }
+
+    @Test
     void everyErrorResponseCarriesExactlyTheLsEnvelopeKeys() {
         List<ResponseEntity<Map<String, Object>>> responses = List.of(
                 advice.engineFailure(new CoreException(CoreErrorCode.INSUFFICIENT_FUNDS, "증거금이 부족합니다")),

@@ -6,10 +6,9 @@ server:
   port: 8080
 
 mock:
-  account:
-    initial-cash: 10000000
-  fill:
-    ratio: 0.3
-    delay: 5s
+  scenario: classpath:scenarios/basic/partial-fill.yml
+  clock:
+    origin: 2026-01-02T00:00:00Z
+    mode: ATTACHED
   token:
     ttl: 24h

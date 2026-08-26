@@ -140,8 +140,8 @@ test resources fixture만 읽어서 카탈로그가 어긋나도 아무 테스�
    정한 이상 결정론에 seed가 필요한지 불분명하다. 유지할지 결정이 필요하다.
 2. `FillSpec.quantity`를 어떤 카탈로그 YAML도 쓰지 않는다. MVP를 `ratio`만으로 갈지
    확인이 필요하다. 유지한다면 `SCENARIO-07`에서 예제를 추가해야 한다.
-3. `constraints`(`rate_limit`, `token_ttl`)를 쓰는 카탈로그 예제가 없다. `SCENARIO-05`
-   정책을 구현해도 사용자가 참고할 YAML이 없으므로 `SCENARIO-07`에서 추가해야 한다.
+3. `constraints`(`rate_limit`, `token_ttl`) 예제는
+   `scenarios/hazards/rate-limit.yml`, `token-expiry.yml`로 확정했다.
 
 ### SCENARIO-02 의미 검증기 완성
 
@@ -231,8 +231,8 @@ timing의 null은 그대로 거부한다.
 보고 필드를 고정한다. 카탈로그에 두면 `SCENARIO-01`의 `ScenarioCatalogTest`가 이들을
 유효한 시나리오로 검사해 깨진다.
 
-`constraints` 예제는 `bad-constraints.yml`에만 있다. 정상 동작하는 `rate_limit`·`token_ttl`
-카탈로그 예제는 `APP-01`이 시나리오를 서버에 연결한 뒤 추가하는 것이 낫다.
+정상 동작하는 `rate_limit`·`token_ttl` 카탈로그 예제를 추가했고 APP-01 통합 테스트로 실제
+HTTP 429·401 응답까지 고정했다.
 
 팀장 확인 필요: AGENTS.md 6절은 MVP faults를 "주문 거부, `AFTER_COMMIT` 응답 지연" 2종으로
 정의하는데 `ScenarioSpec`에는 응답 지연만 있다. 주문 거부를 범위에서 뺄지 필드를 추가할지
@@ -261,22 +261,22 @@ timing의 null은 그대로 거부한다.
 
 선행 조건: `CORE-02`, `SCENARIO-04`
 
-- [ ] 시작 시 YAML 경로를 설정으로 받는다.
-- [ ] `ScenarioLoader`와 `ScenarioValidator`를 실행한다.
-- [ ] 검증 실패 시 서버 시작을 중단하고 오류를 표시한다.
-- [ ] `ScenarioFillPlanProvider`를 `SimulationEngine`에 주입한다.
-- [ ] 서버 시작 시 계좌·주문·event seq가 초기화되는지 확인한다.
+- [x] 시작 시 YAML 경로를 설정으로 받는다.
+- [x] `ScenarioLoader`와 `ScenarioValidator`를 실행한다.
+- [x] 검증 실패 시 서버 시작을 중단하고 오류를 표시한다.
+- [x] `ScenarioFillPlanProvider`를 `SimulationEngine`에 주입한다.
+- [x] 서버 시작 시 계좌·주문·event seq가 초기화되는지 확인한다.
 
 ### APP-02 MVP 전체 흐름 테스트
 
-- [ ] 토큰 발급
-- [ ] 초기 잔고 10,000,000원 조회
-- [ ] 70,000원에 100주 매수
-- [ ] 30주 부분체결 조회
-- [ ] 미체결 70주 취소
-- [ ] 최종 현금 7,900,000원 확인
-- [ ] 잠긴 현금 0원 확인
-- [ ] 보유 수량 30주 확인
+- [x] 토큰 발급
+- [x] 초기 잔고 10,000,000원 조회
+- [x] 70,000원에 100주 매수
+- [x] 30주 부분체결 조회
+- [x] 미체결 70주 취소
+- [x] 최종 현금 7,900,000원 확인
+- [x] 잠긴 현금 0원 확인
+- [x] 보유 수량 30주 확인
 
 ## 이번 대회 MVP에서 보류
 

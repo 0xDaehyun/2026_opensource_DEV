@@ -104,12 +104,9 @@ class ScenarioCatalogTest {
         });
     }
 
-    /**
-     * 카탈로그 어디에도 {@code constraints}를 쓰는 예제가 없다. SCENARIO-05 정책을 구현해도
-     * 사용자가 참고할 YAML이 없다는 뜻이므로 SCENARIO-07에서 추가해야 한다.
-     */
+    /** APP-01에서 실제 요청에 연결한 rate limit과 token TTL 예제를 카탈로그에 유지한다. */
     @Test
-    void documentsThatNoCatalogScenarioUsesConstraintsYet() throws IOException {
+    void catalogsRateLimitAndTokenExpiryConstraints() throws IOException {
         List<Path> withConstraints = catalogFiles()
                 .filter(path -> {
                     try {
@@ -121,7 +118,7 @@ class ScenarioCatalogTest {
                 .toList();
 
         assertThat(withConstraints)
-                .as("TODO(SCENARIO-07): rate_limit·token_ttl 예제를 카탈로그에 추가하면 이 단언을 뒤집는다")
-                .isEmpty();
+                .extracting(path -> path.getFileName().toString())
+                .containsExactlyInAnyOrder("rate-limit.yml", "token-expiry.yml");
     }
 }

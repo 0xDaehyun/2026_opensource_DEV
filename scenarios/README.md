@@ -4,11 +4,12 @@
 바꿀 수 있다.
 
 ```bash
-./gradlew :app:bootRun --args='--mock.scenario=scenarios/basic/partial-fill.yml'
+./gradlew :app:bootRun \
+  --args='--mock.scenario=classpath:scenarios/basic/partial-fill.yml'
 ```
 
-> 시나리오를 서버에 연결하는 작업은 `APP-01`이다. 그 전까지 이 카탈로그는
-> `ScenarioLoader`와 `ScenarioValidator`로만 검증된다.
+서버는 시작 시 파일을 strict 모드로 읽고 의미 검증을 수행합니다. 오류가 있으면 모든 필드
+경로를 출력하고 시작을 중단합니다.
 
 ## 설정 분류
 
@@ -110,6 +111,21 @@ core 주문 접수 완료
 
 봇이 검증할 것: 타임아웃으로 판단해 **같은 주문을 다시 내지 않는가.** 재요청하면
 `중복 clientOrderId` 거부를 받거나, clientOrderId를 바꿨다면 의도치 않은 이중 주문이 된다.
+
+## hazards/rate-limit.yml — 호출 제한
+
+같은 토큰과 operation 조합에서 1초 동안 두 요청까지 허용하고 세 번째부터 HTTP 429와
+`rsp_cd=42900`을 반환합니다. 제한된 요청은 엔진에 도달하지 않습니다.
+
+봇이 검증할 것: 호출 제한 응답을 받았을 때 즉시 반복 호출하지 않고 다음 구간까지
+백오프하는가.
+
+## hazards/token-expiry.yml — 토큰 만료
+
+발급한 Mock 토큰이 2초 뒤 만료됩니다. 만료되거나 발급 기록이 없는 토큰으로 `/stock/**`을
+호출하면 HTTP 401과 `rsp_cd=40100`을 반환합니다.
+
+봇이 검증할 것: 401 응답 후 토큰을 다시 발급받고 원래 요청을 안전하게 재시도하는가.
 
 ---
 

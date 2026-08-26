@@ -48,6 +48,16 @@ public final class LsErrorAdvice {
         return respond(LsErrorType.UNSUPPORTED_TR, exception);
     }
 
+    @ExceptionHandler(LsPolicyException.class)
+    public ResponseEntity<Map<String, Object>> policyRejected(LsPolicyException exception) {
+        LsErrorType type = switch (exception.decision()) {
+            case TOKEN_EXPIRED -> LsErrorType.TOKEN_EXPIRED;
+            case RATE_LIMITED -> LsErrorType.RATE_LIMITED;
+            case ALLOW -> throw new IllegalArgumentException("ALLOW는 거부 오류가 아닙니다");
+        };
+        return respond(type, exception);
+    }
+
     @ExceptionHandler({LsRequestException.class, IllegalArgumentException.class})
     public ResponseEntity<Map<String, Object>> badRequest(RuntimeException exception) {
         return respond(LsErrorType.INVALID_REQUEST, exception);

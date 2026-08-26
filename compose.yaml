@@ -1,0 +1,12 @@
+services:
+  stock-mock-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: stock-mock-server:local
+    ports:
+      - "8080:8080"
+    environment:
+      MOCK_SCENARIO: ${MOCK_SCENARIO:-classpath:scenarios/basic/partial-fill.yml}
+      MOCK_TOKEN_TTL: ${MOCK_TOKEN_TTL:-24h}
+    restart: unless-stopped
