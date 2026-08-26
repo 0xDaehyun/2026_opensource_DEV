@@ -1,0 +1,22 @@
+scenario: policy_integration
+
+account:
+  cash: 10000000
+
+constraints:
+  rate_limit:
+    per_sec: 1
+  token_ttl: 1h
+
+execution:
+  fills:
+    - after: 1ms
+      ratio: 0.3
+
+faults:
+  response:
+    on: PLACE_ORDER
+    timing: AFTER_COMMIT
+    delay: 30ms
+
+seed: 42

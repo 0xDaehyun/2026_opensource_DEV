@@ -1,0 +1,14 @@
+scenario: short_token
+
+account:
+  cash: 10000000
+
+constraints:
+  token_ttl: 20ms
+
+execution:
+  fills:
+    - after: 1ms
+      ratio: 0.3
+
+seed: 42

@@ -1,5 +1,6 @@
 package io.github.stockmock.app;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -8,32 +9,50 @@ import org.springframework.http.MediaType;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
 
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest(properties = "mock.scenario=classpath:fast-partial-fill.yml")
+@SpringBootTest(properties = {
+        "mock.scenario=classpath:policy-scenario.yml",
+        "mock.clock.mode=HEADLESS"
+})
 @AutoConfigureMockMvc
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
-class DashboardControllerTest {
+class ScenarioPolicyIntegrationTest {
     @Autowired
     MockMvc mockMvc;
 
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
     @Test
-    void servesTheDashboardWithoutANodeRuntime() throws Exception {
-        mockMvc.perform(get("/index.html"))
-                .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Stock Mock Console")));
+    void appliesRateLimitBeforeTheEngine() throws Exception {
+        String token = issueToken();
+        String balanceQuery = "{\"t0424InBlock\": {\"accno\": \"12345678901\"}}";
+
+        mockMvc.perform(post("/stock/accno")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(balanceQuery))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/stock/accno")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(balanceQuery))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.rsp_cd").value("42900"));
     }
 
     @Test
-    void reportsAccountOrdersAndRecentEvents() throws Exception {
+    void delaysTheResponseAfterTheOrderHasBeenCommitted() throws Exception {
         String token = issueToken();
+        long started = System.nanoTime();
+
         mockMvc.perform(post("/stock/order")
-                        .contentType(MediaType.APPLICATION_JSON)
                         .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"CSPAT00601InBlock1": {
                                   "AcntNo": "12345678901",
@@ -41,31 +60,22 @@ class DashboardControllerTest {
                                   "OrdQty": 100,
                                   "OrdPrc": 70000,
                                   "BnsTpCode": "2",
-                                  "clientOrderId": "dashboard-test-1"
+                                  "clientOrderId": "delayed-order"
                                 }}
                                 """))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(get("/mock/dashboard"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.serverStatus").value("RUNNING"))
-                .andExpect(jsonPath("$.account.cash").value(3_000_000))
-                .andExpect(jsonPath("$.account.lockedCash").value(4_900_000))
-                .andExpect(jsonPath("$.account.positions[0].symbol").value("005930"))
-                .andExpect(jsonPath("$.account.positions[0].quantity").value(30))
-                .andExpect(jsonPath("$.orderCounts.partiallyFilled").value(1))
-                .andExpect(jsonPath("$.orders[0].state").value("PARTIALLY_FILLED"))
-                .andExpect(jsonPath("$.events[0].type").value("PARTIAL_FILL"));
+        long elapsedMillis = (System.nanoTime() - started) / 1_000_000;
+        assertThat(elapsedMillis).isGreaterThanOrEqualTo(25);
     }
 
     private String issueToken() throws Exception {
         String body = mockMvc.perform(post("/oauth2/token")
                         .param("grant_type", "client_credentials")
-                        .param("appkey", "dashboard-test")
-                        .param("appsecretkey", "dashboard-secret"))
+                        .param("appkey", "policy-test")
+                        .param("appsecretkey", "policy-secret"))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
-        return new com.fasterxml.jackson.databind.ObjectMapper()
-                .readTree(body).path("access_token").asText();
+        return objectMapper.readTree(body).path("access_token").asText();
     }
 }

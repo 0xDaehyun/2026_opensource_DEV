@@ -18,6 +18,7 @@ COPY core/src ./core/src
 COPY adapter-ls/src ./adapter-ls/src
 COPY scenario/src ./scenario/src
 COPY app/src ./app/src
+COPY scenarios ./scenarios
 
 RUN ./gradlew :app:bootJar --no-daemon \
     && cp app/build/libs/app-*.jar /workspace/stock-mock-server.jar

@@ -1,0 +1,14 @@
+scenario: token_expiry
+
+account:
+  cash: 10000000
+
+constraints:
+  token_ttl: 2s
+
+execution:
+  fills:
+    - after: 1s
+      ratio: 0.3
+
+seed: 42

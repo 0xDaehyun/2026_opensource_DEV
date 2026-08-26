@@ -15,7 +15,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest(properties = "mock.fill.delay=0s")
+@SpringBootTest(properties = "mock.scenario=classpath:fast-partial-fill.yml")
 @AutoConfigureMockMvc
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class LsApiSmokeTest {
@@ -26,8 +26,10 @@ class LsApiSmokeTest {
 
     @Test
     void cashBuyOrderThenBalanceQueryUsesLsEnvelope() throws Exception {
+        String token = issueToken("smoke-basic");
         mockMvc.perform(post("/stock/order")
                         .contentType(MediaType.APPLICATION_JSON)
+                        .header("Authorization", "Bearer " + token)
                         .content("""
                                 {"CSPAT00601InBlock1": {
                                   "AcntNo": "12345678901",
@@ -42,8 +44,11 @@ class LsApiSmokeTest {
                 .andExpect(jsonPath("$.rsp_cd").value("00040"))
                 .andExpect(jsonPath("$.CSPAT00601OutBlock2.OrdNo").isNumber());
 
+        Thread.sleep(15);
+
         mockMvc.perform(post("/stock/accno")
                         .contentType(MediaType.APPLICATION_JSON)
+                        .header("Authorization", "Bearer " + token)
                         .content("{\"t0424InBlock\": {\"accno\": \"12345678901\"}}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.rsp_cd").value("00000"))
@@ -73,8 +78,19 @@ class LsApiSmokeTest {
 
     @Test
     void numericLsOrderNumberConnectsBuyStatusAndCancellation() throws Exception {
+        String token = issueToken("smoke-lifecycle");
+
+        mockMvc.perform(post("/stock/accno")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("Authorization", "Bearer " + token)
+                        .content("{\"t0424InBlock\": {\"accno\": \"12345678901\"}}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.t0424OutBlock.sunamt").value(10_000_000))
+                .andExpect(jsonPath("$.t0424OutBlock.mamt").value(0));
+
         MvcResult placed = mockMvc.perform(post("/stock/order")
                         .contentType(MediaType.APPLICATION_JSON)
+                        .header("Authorization", "Bearer " + token)
                         .content("""
                                 {"CSPAT00601InBlock1": {
                                   "AcntNo": "12345678901",
@@ -95,6 +111,7 @@ class LsApiSmokeTest {
 
         mockMvc.perform(post("/stock/accno")
                         .contentType(MediaType.APPLICATION_JSON)
+                        .header("Authorization", "Bearer " + token)
                         .content("""
                                 {"t0425InBlock": {
                                   "expcode": "005930",
@@ -110,6 +127,7 @@ class LsApiSmokeTest {
 
         mockMvc.perform(post("/stock/order")
                         .contentType(MediaType.APPLICATION_JSON)
+                        .header("Authorization", "Bearer " + token)
                         .content("""
                                 {"CSPAT00801InBlock1": {
                                   "AcntNo": "12345678901",
@@ -125,6 +143,7 @@ class LsApiSmokeTest {
 
         mockMvc.perform(post("/stock/accno")
                         .contentType(MediaType.APPLICATION_JSON)
+                        .header("Authorization", "Bearer " + token)
                         .content("""
                                 {"t0425InBlock": {
                                   "expcode": "005930",
@@ -136,5 +155,34 @@ class LsApiSmokeTest {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.t0425OutBlock1[0].status").value("취소"));
+
+        mockMvc.perform(post("/stock/accno")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("Authorization", "Bearer " + token)
+                        .content("{\"t0424InBlock\": {\"accno\": \"12345678901\"}}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.t0424OutBlock.sunamt").value(7_900_000))
+                .andExpect(jsonPath("$.t0424OutBlock.mamt").value(0))
+                .andExpect(jsonPath("$.t0424OutBlock1[0].janqty").value(30));
+    }
+
+    @Test
+    void stockApiRequiresAnIssuedBearerToken() throws Exception {
+        mockMvc.perform(post("/stock/accno")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"t0424InBlock\": {\"accno\": \"12345678901\"}}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.rsp_cd").value("40100"));
+    }
+
+    private String issueToken(String appKey) throws Exception {
+        MvcResult issued = mockMvc.perform(post("/oauth2/token")
+                        .param("grant_type", "client_credentials")
+                        .param("appkey", appKey)
+                        .param("appsecretkey", "smoke-app-secret"))
+                .andExpect(status().isOk())
+                .andReturn();
+        return objectMapper.readTree(issued.getResponse().getContentAsString())
+                .path("access_token").asText();
     }
 }

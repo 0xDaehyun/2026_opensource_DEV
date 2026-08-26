@@ -6,7 +6,8 @@ import io.github.stockmock.core.clock.VirtualClock;
 import io.github.stockmock.core.engine.AccountQuery;
 import io.github.stockmock.core.engine.SimulationEngine;
 import io.github.stockmock.core.event.EventRecord;
-import org.springframework.beans.factory.annotation.Value;
+import io.github.stockmock.scenario.spec.ScenarioSpec;
+import io.github.stockmock.scenario.time.DurationParser;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -27,19 +28,17 @@ public final class DashboardController {
 
     private final SimulationEngine engine;
     private final VirtualClock clock;
-    private final double fillRatio;
-    private final Duration fillDelay;
+    private final LoadedScenario scenario;
+    private final DurationParser durationParser = new DurationParser();
 
     public DashboardController(
             SimulationEngine engine,
             VirtualClock clock,
-            @Value("${mock.fill.ratio:0.3}") double fillRatio,
-            @Value("${mock.fill.delay:PT5S}") Duration fillDelay
+            LoadedScenario scenario
     ) {
         this.engine = engine;
         this.clock = clock;
-        this.fillRatio = fillRatio;
-        this.fillDelay = fillDelay;
+        this.scenario = scenario;
     }
 
     @GetMapping
@@ -51,11 +50,25 @@ public final class DashboardController {
         return new DashboardSnapshot(
                 "RUNNING",
                 clock.now(),
-                new ScenarioSummary("기본 부분체결", fillRatio, fillDelay),
+                scenarioSummary(),
                 accountSummary(account),
                 countOrders(orders),
                 orders,
                 recentEvents(eventRecords));
+    }
+
+    private ScenarioSummary scenarioSummary() {
+        ScenarioSpec.FillSpec first = scenario.spec().execution().fills().getFirst();
+        return new ScenarioSummary(
+                scenario.name(),
+                scenario.source(),
+                first.ratio(),
+                first.quantity(),
+                durationParser.parse(first.after()),
+                scenario.settings().ratePerSecond().isPresent()
+                        ? scenario.settings().ratePerSecond().getAsInt() : null,
+                scenario.settings().tokenTtl().orElse(null),
+                scenario.settings().responseDelay().map(rule -> rule.delay()).orElse(null));
     }
 
     private AccountSummary accountSummary(AccountView account) {
@@ -157,7 +170,16 @@ public final class DashboardController {
     ) {
     }
 
-    public record ScenarioSummary(String name, double fillRatio, Duration fillDelay) {
+    public record ScenarioSummary(
+            String name,
+            String source,
+            Double fillRatio,
+            Long fillQuantity,
+            Duration fillDelay,
+            Integer ratePerSecond,
+            Duration tokenTtl,
+            Duration responseDelay
+    ) {
     }
 
     public record AccountSummary(long cash, long lockedCash, List<PositionSummary> positions) {

@@ -37,6 +37,7 @@ const eventLabels = {
 
 let latestSnapshot = null;
 let latestLsOrderNumber = window.localStorage.getItem('stockmock.latestLsOrderNumber');
+let accessToken = null;
 
 const money = value => `${new Intl.NumberFormat('ko-KR').format(value ?? 0)}원`;
 const number = value => new Intl.NumberFormat('ko-KR').format(value ?? 0);
@@ -76,7 +77,10 @@ function render(snapshot) {
   setText(ui.totalOrders, `${number(counts.total)}건`);
   setText(ui.orderBreakdown, `부분체결 ${counts.partiallyFilled} · 체결 ${counts.filled} · 취소 ${counts.cancelled}`);
   setText(ui.scenarioName, snapshot.scenario.name);
-  setText(ui.fillSetting, `${Math.round(snapshot.scenario.fillRatio * 100)}% · ${snapshot.scenario.fillDelay}`);
+  const fillAmount = snapshot.scenario.fillRatio != null
+    ? `${Math.round(snapshot.scenario.fillRatio * 100)}%`
+    : `${number(snapshot.scenario.fillQuantity)}주`;
+  setText(ui.fillSetting, `${fillAmount} · ${snapshot.scenario.fillDelay}`);
   setText(document.querySelector('#count-accepted'), counts.accepted);
   setText(document.querySelector('#count-partial'), counts.partiallyFilled);
   setText(document.querySelector('#count-filled'), counts.filled);
@@ -165,14 +169,38 @@ async function refresh() {
 }
 
 async function requestJson(url, body) {
+  const token = await ensureToken();
   const response = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
     body: JSON.stringify(body)
   });
   const data = await response.json();
   if (!response.ok) throw new Error(data.rsp_msg ?? `HTTP ${response.status}`);
   return data;
+}
+
+async function ensureToken() {
+  if (accessToken) return accessToken;
+  const form = new URLSearchParams({
+    grant_type: 'client_credentials',
+    appkey: 'dashboard',
+    appsecretkey: 'dashboard-secret'
+  });
+  const response = await fetch('/oauth2/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: form
+  });
+  const data = await response.json();
+  if (!response.ok || !data.access_token) {
+    throw new Error(data.rsp_msg ?? 'Mock 토큰을 발급받지 못했습니다.');
+  }
+  accessToken = data.access_token;
+  return accessToken;
 }
 
 async function buyDemo() {
@@ -191,7 +219,7 @@ async function buyDemo() {
     if (result.rsp_cd !== '00040') throw new Error(result.rsp_msg ?? '주문이 거부되었습니다.');
     latestLsOrderNumber = String(result.CSPAT00601OutBlock2.OrdNo);
     window.localStorage.setItem('stockmock.latestLsOrderNumber', latestLsOrderNumber);
-    showMessage(`주문 ${latestLsOrderNumber} 접수 완료 · 5초 뒤 상태를 확인하세요.`, 'success');
+    showMessage(`주문 ${latestLsOrderNumber} 접수 완료 · 시나리오에 따라 체결됩니다.`, 'success');
     await refresh();
   } catch (error) {
     showMessage(error.message, 'error');
