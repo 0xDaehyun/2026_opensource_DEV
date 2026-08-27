@@ -25,7 +25,12 @@ class DashboardControllerTest {
     void servesTheDashboardWithoutANodeRuntime() throws Exception {
         mockMvc.perform(get("/index.html"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Stock Mock Console")));
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Stock Mock Console")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"order-form\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"symbol-input\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"quantity-input\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"price-input\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("SERVER PROCESSING POLICY")));
     }
 
     @Test

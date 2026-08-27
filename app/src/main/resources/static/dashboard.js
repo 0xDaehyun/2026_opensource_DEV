@@ -13,9 +13,14 @@ const ui = {
   eventList: document.querySelector('#event-list'),
   lastUpdated: document.querySelector('#last-updated'),
   actionMessage: document.querySelector('#action-message'),
+  orderForm: document.querySelector('#order-form'),
+  symbolInput: document.querySelector('#symbol-input'),
+  quantityInput: document.querySelector('#quantity-input'),
+  priceInput: document.querySelector('#price-input'),
   buyButton: document.querySelector('#buy-button'),
   cancelButton: document.querySelector('#cancel-button'),
-  refreshButton: document.querySelector('#refresh-button')
+  refreshButton: document.querySelector('#refresh-button'),
+  scenarioIcon: document.querySelector('#scenario-icon')
 };
 
 const stateLabels = {
@@ -80,6 +85,7 @@ function render(snapshot) {
   const fillAmount = snapshot.scenario.fillRatio != null
     ? `${Math.round(snapshot.scenario.fillRatio * 100)}%`
     : `${number(snapshot.scenario.fillQuantity)}주`;
+  setText(ui.scenarioIcon, fillAmount);
   setText(ui.fillSetting, `${fillAmount} · ${snapshot.scenario.fillDelay}`);
   setText(document.querySelector('#count-accepted'), counts.accepted);
   setText(document.querySelector('#count-partial'), counts.partiallyFilled);
@@ -203,23 +209,41 @@ async function ensureToken() {
   return accessToken;
 }
 
-async function buyDemo() {
+function orderInput() {
+  const symbol = ui.symbolInput.value.trim().toUpperCase();
+  const quantity = Number(ui.quantityInput.value);
+  const price = Number(ui.priceInput.value);
+  if (!/^[A-Z]?\d{6}$/.test(symbol)) {
+    throw new Error('종목코드는 005930 또는 A005930 형식이어야 합니다.');
+  }
+  if (!Number.isSafeInteger(quantity) || quantity <= 0) {
+    throw new Error('주문 수량은 0보다 큰 정수여야 합니다.');
+  }
+  if (!Number.isSafeInteger(price) || price <= 0) {
+    throw new Error('주문 가격은 0보다 큰 정수여야 합니다.');
+  }
+  return { symbol, quantity, price };
+}
+
+async function buyDemo(event) {
+  event.preventDefault();
   setBusy(true);
   try {
+    const order = orderInput();
     const result = await requestJson('/stock/order', {
       CSPAT00601InBlock1: {
         AcntNo: '12345678901',
-        IsuNo: '005930',
-        OrdQty: 100,
-        OrdPrc: 70000,
+        IsuNo: order.symbol,
+        OrdQty: order.quantity,
+        OrdPrc: order.price,
         BnsTpCode: '2',
-        clientOrderId: `dashboard-${Date.now()}`
+        clientOrderId: `dashboard-${order.symbol}-${Date.now()}`
       }
     });
     if (result.rsp_cd !== '00040') throw new Error(result.rsp_msg ?? '주문이 거부되었습니다.');
     latestLsOrderNumber = String(result.CSPAT00601OutBlock2.OrdNo);
     window.localStorage.setItem('stockmock.latestLsOrderNumber', latestLsOrderNumber);
-    showMessage(`주문 ${latestLsOrderNumber} 접수 완료 · 시나리오에 따라 체결됩니다.`, 'success');
+    showMessage(`${order.symbol} ${number(order.quantity)}주 주문 접수 · YAML 시나리오에 따라 체결됩니다.`, 'success');
     await refresh();
   } catch (error) {
     showMessage(error.message, 'error');
@@ -229,12 +253,11 @@ async function buyDemo() {
 }
 
 async function cancelDemo() {
-  if (!latestLsOrderNumber) {
-    showMessage('이 화면에서 먼저 데모 매수 주문을 실행해주세요.', 'error');
+  const target = latestSnapshot?.orders.find(order => !['FILLED', 'CANCELLED', 'REJECTED'].includes(order.state));
+  if (!latestLsOrderNumber || !target) {
+    showMessage('이 화면에서 먼저 미체결 수량이 남는 매수 주문을 실행해주세요.', 'error');
     return;
   }
-  const target = latestSnapshot?.orders.find(order => !['FILLED', 'CANCELLED', 'REJECTED'].includes(order.state));
-  const remainingQuantity = target?.remainingQuantity ?? 70;
 
   setBusy(true);
   try {
@@ -242,8 +265,8 @@ async function cancelDemo() {
       CSPAT00801InBlock1: {
         AcntNo: '12345678901',
         OrgOrdNo: Number(latestLsOrderNumber),
-        IsuNo: '005930',
-        OrdQty: remainingQuantity
+        IsuNo: target.symbol,
+        OrdQty: target.remainingQuantity
       }
     });
     if (result.rsp_cd !== '00156') throw new Error(result.rsp_msg ?? '취소가 거부되었습니다.');
@@ -257,12 +280,15 @@ async function cancelDemo() {
 }
 
 function setBusy(busy) {
+  ui.symbolInput.disabled = busy;
+  ui.quantityInput.disabled = busy;
+  ui.priceInput.disabled = busy;
   ui.buyButton.disabled = busy;
   ui.cancelButton.disabled = busy;
   ui.refreshButton.disabled = busy;
 }
 
-ui.buyButton.addEventListener('click', buyDemo);
+ui.orderForm.addEventListener('submit', buyDemo);
 ui.cancelButton.addEventListener('click', cancelDemo);
 ui.refreshButton.addEventListener('click', refresh);
 

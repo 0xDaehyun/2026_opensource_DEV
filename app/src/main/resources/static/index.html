@@ -27,14 +27,39 @@
       <div>
         <p class="eyebrow">LOCAL TRADING LAB</p>
         <h1>주문 상태와 장애 대응을<br>한 화면에서 확인하세요.</h1>
-        <p class="hero-copy">실계좌 없이 주문 접수, 부분체결, 취소와 계좌 정합성을 관찰합니다.</p>
+        <p class="hero-copy">종목·수량·가격은 사용자 프로그램이 보내고, YAML 시나리오는 들어온 주문의 체결 비율·지연·장애를 결정합니다.</p>
       </div>
-      <div class="demo-actions" aria-label="데모 실행">
-        <button id="buy-button" class="button button-primary" type="button">100주 데모 매수</button>
-        <button id="cancel-button" class="button button-secondary" type="button">미체결 전량 취소</button>
-        <button id="refresh-button" class="button button-ghost" type="button">새로고침</button>
+      <form id="order-form" class="demo-actions" aria-label="사용자 주문 입력">
+        <div class="order-form-heading">
+          <div>
+            <p class="eyebrow">CLIENT ORDER INPUT</p>
+            <strong>사용자 주문</strong>
+          </div>
+          <span>LS 현물 매수</span>
+        </div>
+        <div class="order-fields">
+          <label>
+            <span>종목코드</span>
+            <input id="symbol-input" name="symbol" type="text" value="005930" maxlength="7"
+                   pattern="[A-Za-z]?[0-9]{6}" inputmode="text" autocomplete="off" required>
+          </label>
+          <label>
+            <span>주문 수량</span>
+            <input id="quantity-input" name="quantity" type="number" value="100" min="1" step="1" required>
+          </label>
+          <label>
+            <span>주문 가격</span>
+            <input id="price-input" name="price" type="number" value="70000" min="1" step="1" required>
+          </label>
+        </div>
+        <div class="order-actions">
+          <button id="buy-button" class="button button-primary" type="submit">매수 주문</button>
+          <button id="cancel-button" class="button button-secondary" type="button">미체결 전량 취소</button>
+          <button id="refresh-button" class="button button-ghost" type="button">새로고침</button>
+        </div>
         <p id="action-message" class="action-message" aria-live="polite">버튼은 실제 LS 호환 API를 호출합니다.</p>
-      </div>
+        <p class="order-form-note">입력값은 API 요청이며, 체결 방식은 아래 활성 YAML 시나리오가 결정합니다.</p>
+      </form>
     </section>
 
     <section class="metric-grid" aria-label="주요 지표">
@@ -67,7 +92,7 @@
             <p class="eyebrow">ACTIVE SCENARIO</p>
             <h2 id="scenario-name">기본 부분체결</h2>
           </div>
-          <span class="scenario-icon">30%</span>
+          <span id="scenario-icon" class="scenario-icon">-</span>
         </div>
         <div class="scenario-flow">
           <div><span>01</span><strong>주문 접수</strong><small>현금 잠금</small></div>
@@ -76,7 +101,7 @@
           <i></i>
           <div><span>03</span><strong>미체결</strong><small>취소 가능</small></div>
         </div>
-        <p class="panel-note"><code>mock.scenario</code>로 선택한 YAML의 체결·제약·지연 정책을 사용합니다.</p>
+        <p class="panel-note"><strong>SERVER PROCESSING POLICY</strong> · <code>mock.scenario</code>로 선택한 YAML이 어떤 주문이 들어와도 체결·제약·지연 정책을 동일하게 적용합니다.</p>
       </article>
 
       <article class="panel state-panel">
